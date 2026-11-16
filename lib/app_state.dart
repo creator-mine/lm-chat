@@ -2574,6 +2574,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
                     baseUrl: incoming.baseUrl,
                     bridgeUrl: incoming.bridgeUrl,
                     chatViaBridge: incoming.chatViaBridge,
+                    pluginUrl: incoming.pluginUrl,
                   )
                 : incoming.clone();
             data.servers.add(target);
