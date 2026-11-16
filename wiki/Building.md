@@ -87,10 +87,10 @@ $env:LMCHAT_SIGN_CERT="<sha1 сертификата>"
 Версия и build-номер задаются в `pubspec.yaml`:
 
 ```yaml
-version: 1.11.0+30
+version: 1.11.1+31
 ```
 
-Приложение сравнивает с текущей версией тег релиза (`v1.11.0`). Build-номер в
+Приложение сравнивает с текущей версией тег релиза (`v1.11.1`). Build-номер в
 сравнении обновлений не участвует, но нужен Android для установки новой сборки.
 
 ## Чек-лист релиза
@@ -103,7 +103,7 @@ version: 1.11.0+30
 5. Посчитать SHA-256:
 
    ```bash
-   sha256sum lm-chat-universal.apk lm-chat-setup-1.11.0.exe
+   sha256sum lm-chat-universal.apk lm-chat-setup-1.11.1.exe
    ```
 
 6. Создать тег `vX.Y.Z` и GitHub Release.
@@ -117,7 +117,7 @@ version: 1.11.0+30
    ```text
    SHA-256
    lm-chat-universal.apk  <хеш>
-   lm-chat-setup-1.11.0.exe  <хеш>
+   lm-chat-setup-1.11.1.exe  <хеш>
    ```
 
    Приложение использует `digest` из метаданных GitHub, а если его нет —
