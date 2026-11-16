@@ -66,7 +66,11 @@ void main() {
     expect(find.text('Мост включён'), findsOneWidget);
     expect(find.text('Адрес моста: http://192.168.1.50:1235'), findsOneWidget);
 
-    final tokenField = find.byType(TextField).last;
+    final tokenField = find.byWidgetPredicate(
+      (widget) =>
+          widget is TextField &&
+          widget.decoration?.labelText == 'Токен моста (BRIDGE_TOKEN)',
+    );
     await tester.ensureVisible(tokenField);
     await tester.enterText(tokenField, 'secret-token');
     await tester.tap(find.text('Сохранить'));
@@ -120,5 +124,55 @@ void main() {
     expect(saved, isNotNull);
     expect(saved!.bridgeUrl, 'http://192.168.1.50:2345');
     expect(saved!.bridgeToken, 'old-token');
+  });
+
+  testWidgets('server dialog saves the plugin address and token', (
+    tester,
+  ) async {
+    ServerConfig? saved;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => Center(
+              child: TextButton(
+                onPressed: () async {
+                  saved = await showDialog<ServerConfig>(
+                    context: context,
+                    builder: (_) => const ServerEditDialog(),
+                  );
+                },
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    final urlField = find.byWidgetPredicate(
+      (widget) =>
+          widget is TextField &&
+          widget.decoration?.labelText == 'Адрес плагина',
+    );
+    await tester.ensureVisible(urlField);
+    await tester.enterText(urlField, 'http://192.168.1.50:2236');
+
+    final tokenField = find.byWidgetPredicate(
+      (widget) =>
+          widget is TextField &&
+          widget.decoration?.labelText == 'Токен плагина',
+    );
+    await tester.ensureVisible(tokenField);
+    await tester.enterText(tokenField, 'plugin-token');
+
+    await tester.tap(find.text('Сохранить'));
+    await tester.pumpAndSettle();
+
+    expect(saved, isNotNull);
+    expect(saved!.pluginUrl, 'http://192.168.1.50:2236');
+    expect(saved!.pluginToken, 'plugin-token');
   });
 }

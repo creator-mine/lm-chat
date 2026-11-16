@@ -170,6 +170,34 @@ class L10n {
     'Очистить запись': 'Clear recording',
     'Дамп сохранён': 'Dump saved',
     'Не удалось сохранить дамп: {error}': 'Could not save the dump: {error}',
+    'Логи плагина': 'Plugin logs',
+    'Укажите адрес и токен плагина в настройках сервера.':
+        'Set the plugin address and token in the server settings.',
+    'lm-computer: нет данных': 'lm-computer: no data yet',
+    'lm-computer {version} · лог: {level} · записей: {count}':
+        'lm-computer {version} · log: {level} · entries: {count}',
+    'Пока нет записей. Включите debug и повторите запрос.':
+        'No entries yet. Enable debug and repeat the request.',
+    'Показаны последние 50 записей.': 'Showing the last 50 entries.',
+    'Плагин lm-computer — необязательно': 'lm-computer plugin — optional',
+    'Адрес плагина': 'Plugin address',
+    'Пусто — использовать адрес LM Studio с портом 1236.':
+        'Leave empty to use the LM Studio host with port 1236.',
+    'Токен плагина': 'Plugin token',
+    'Из ~/.config/lm-computer/token.txt. Нужен для логов и '
+            'статуса плагина.':
+        'From ~/.config/lm-computer/token.txt. Needed for the plugin '
+        'status and logs.',
+    'Плагин lm-computer {version}, лог: {level}':
+        'lm-computer plugin {version}, log: {level}',
+    'Плагин lm-computer: {error}': 'lm-computer plugin: {error}',
+    'Адрес плагина не задан. Укажите его в настройках сервера.':
+        'The plugin address is not set. Set it in the server settings.',
+    'Укажите токен плагина lm-computer.': 'Set the lm-computer plugin token.',
+    'Неверный токен плагина (401).': 'Invalid plugin token (401).',
+    'Плагин не поддерживает логи. Обновите lm-computer до 0.1.6.':
+        'The plugin does not support logs. Update lm-computer to 0.1.6.',
+    'Плагин ответил ошибкой {code}.': 'The plugin returned error {code}.',
     'Очистить чат': 'Clear chat',
     'Сбросить': 'Reset',
     'Готово': 'Done',

@@ -134,6 +134,7 @@ class StreamProbe extends ChangeNotifier {
     _typeCounts.clear();
     _add({
       'type': 'begin',
+      'at': _startedAt?.millisecondsSinceEpoch,
       'stream': stream,
       'model': model,
       if (integrationId.isNotEmpty) 'integration': integrationId,

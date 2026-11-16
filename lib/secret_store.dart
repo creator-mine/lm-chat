@@ -2,12 +2,18 @@ import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ServerSecrets {
-  const ServerSecrets({this.apiKey = '', this.bridgeToken = ''});
+  const ServerSecrets({
+    this.apiKey = '',
+    this.bridgeToken = '',
+    this.pluginToken = '',
+  });
 
   final String apiKey;
   final String bridgeToken;
+  final String pluginToken;
 
-  bool get isEmpty => apiKey.isEmpty && bridgeToken.isEmpty;
+  bool get isEmpty =>
+      apiKey.isEmpty && bridgeToken.isEmpty && pluginToken.isEmpty;
 }
 
 /// Storage for per-server secrets. The real implementation uses the platform
@@ -31,6 +37,7 @@ class SecureSecretStore implements SecretStore {
 
   static String _apiKey(String id) => 'lm_chat.$id.apiKey';
   static String _bridgeToken(String id) => 'lm_chat.$id.bridgeToken';
+  static String _pluginToken(String id) => 'lm_chat.$id.pluginToken';
 
   @override
   Future<bool> isAvailable() async {
@@ -53,7 +60,12 @@ class SecureSecretStore implements SecretStore {
   Future<ServerSecrets> read(String serverId) async {
     final apiKey = await storage.read(key: _apiKey(serverId)) ?? '';
     final bridgeToken = await storage.read(key: _bridgeToken(serverId)) ?? '';
-    return ServerSecrets(apiKey: apiKey, bridgeToken: bridgeToken);
+    final pluginToken = await storage.read(key: _pluginToken(serverId)) ?? '';
+    return ServerSecrets(
+      apiKey: apiKey,
+      bridgeToken: bridgeToken,
+      pluginToken: pluginToken,
+    );
   }
 
   @override
@@ -71,12 +83,21 @@ class SecureSecretStore implements SecretStore {
         value: secrets.bridgeToken,
       );
     }
+    if (secrets.pluginToken.isEmpty) {
+      await storage.delete(key: _pluginToken(serverId));
+    } else {
+      await storage.write(
+        key: _pluginToken(serverId),
+        value: secrets.pluginToken,
+      );
+    }
   }
 
   @override
   Future<void> delete(String serverId) async {
     await storage.delete(key: _apiKey(serverId));
     await storage.delete(key: _bridgeToken(serverId));
+    await storage.delete(key: _pluginToken(serverId));
   }
 }
 

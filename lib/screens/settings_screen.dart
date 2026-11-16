@@ -8,6 +8,7 @@ import '../app_version.dart';
 import '../format_utils.dart';
 import '../l10n_text.dart';
 import '../models.dart';
+import '../plugin_client.dart';
 import '../theme.dart';
 import '../widgets/model_picker.dart';
 import '../widgets/model_settings_sheet.dart';
@@ -1123,6 +1124,8 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
   late bool _chatViaBridge;
   late bool _mcpEnabled;
   late final TextEditingController _mcpIntegration;
+  late final TextEditingController _pluginUrl;
+  late final TextEditingController _pluginToken;
 
   /// Bridge address stored with the server. When the bridge is enabled from
   /// this dialog, it is derived from the server address; for existing servers
@@ -1156,6 +1159,10 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
           widget.server?.mcpIntegrationId ??
           ServerConfig.defaultMcpIntegrationId,
     );
+    _pluginUrl = TextEditingController(text: widget.server?.pluginUrl ?? '');
+    _pluginToken = TextEditingController(
+      text: widget.server?.pluginToken ?? '',
+    );
   }
 
   @override
@@ -1165,6 +1172,8 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
     _key.dispose();
     _bridgeToken.dispose();
     _mcpIntegration.dispose();
+    _pluginUrl.dispose();
+    _pluginToken.dispose();
     super.dispose();
   }
 
@@ -1189,6 +1198,8 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
     }
     return ServerConfig.bridgeUrlForBase(_url.text);
   }
+
+  String get _pluginHint => ServerConfig.pluginUrlForBase(_url.text);
 
   void _toggleBridge() {
     if (_bridgeEnabled) {
@@ -1223,6 +1234,8 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
     mcpIntegrationId: _mcpIntegration.text.trim().isEmpty
         ? ServerConfig.defaultMcpIntegrationId
         : _mcpIntegration.text.trim(),
+    pluginUrl: _pluginUrl.text.trim(),
+    pluginToken: _pluginToken.text.trim(),
   );
 
   void _save() {
@@ -1232,6 +1245,14 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
       setState(() {
         _testOk = false;
         _testMessage = security;
+      });
+      return;
+    }
+    if (server.pluginUrl.trim().isNotEmpty &&
+        server.pluginSecurityError != null) {
+      setState(() {
+        _testOk = false;
+        _testMessage = 'Плагин: ${server.pluginSecurityError}';
       });
       return;
     }
@@ -1297,6 +1318,25 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
             'error': bridge.error ?? L10n.t('не отвечает'),
           }),
         );
+      }
+    }
+    if (server.hasPlugin && server.pluginToken.trim().isNotEmpty) {
+      try {
+        final plugin = await PluginClient(server).status();
+        lines.add(
+          L10n.tf('Плагин lm-computer {version}, лог: {level}', {
+            'version': plugin.version.isEmpty ? '?' : plugin.version,
+            'level': plugin.logLevel,
+          }),
+        );
+      } on PluginException catch (error) {
+        ok = false;
+        lines.add(
+          L10n.tf('Плагин lm-computer: {error}', {'error': error.message}),
+        );
+      } catch (error) {
+        ok = false;
+        lines.add(L10n.tf('Плагин lm-computer: {error}', {'error': error}));
       }
     }
     setState(() {
@@ -1486,6 +1526,45 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
                 ),
               ),
             ],
+            const Divider(height: 24),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Плагин lm-computer — необязательно',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _pluginUrl,
+              keyboardType: TextInputType.url,
+              autocorrect: false,
+              decoration: InputDecoration(
+                labelText: L10n.t('Адрес плагина'),
+                hintText: _pluginHint.isEmpty
+                    ? 'http://192.168.1.50:1236'
+                    : _pluginHint,
+                helperText: L10n.t(
+                  'Пусто — использовать адрес LM Studio с портом 1236.',
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _pluginToken,
+              obscureText: true,
+              decoration: InputDecoration(
+                labelText: L10n.t('Токен плагина'),
+                helperText: L10n.t(
+                  'Из ~/.config/lm-computer/token.txt. Нужен для логов и '
+                  'статуса плагина.',
+                ),
+              ),
+            ),
             const SizedBox(height: 4),
             Align(
               alignment: Alignment.centerLeft,

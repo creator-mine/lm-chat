@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart' hide Text;
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -6,6 +8,8 @@ import '../app_log.dart';
 import '../app_state.dart';
 import '../app_version.dart';
 import '../l10n_text.dart';
+import '../models.dart';
+import '../plugin_client.dart';
 import '../stream_probe.dart';
 import '../theme.dart';
 import '../tool_file_saver.dart';
@@ -103,6 +107,8 @@ class DiagnosticsScreen extends StatelessWidget {
                   const SizedBox(height: 12),
                   const _ProbeCard(),
                   const SizedBox(height: 12),
+                  const _PluginLogCard(),
+                  const SizedBox(height: 12),
                   if (entries.isEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 32),
@@ -131,6 +137,315 @@ class DiagnosticsScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+class _PluginLogCard extends StatefulWidget {
+  const _PluginLogCard();
+
+  @override
+  State<_PluginLogCard> createState() => _PluginLogCardState();
+}
+
+class _PluginLogCardState extends State<_PluginLogCard> {
+  PluginStatus? _status;
+  PluginLogPage? _page;
+  String? _error;
+  bool _loading = false;
+  bool _started = false;
+  String? _busyLevel;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    final server = context.read<AppState>().activeServer;
+    if (_configured(server)) unawaited(_refresh(server!));
+  }
+
+  bool _configured(ServerConfig? server) =>
+      server != null &&
+      server.hasPlugin &&
+      server.pluginToken.trim().isNotEmpty;
+
+  Future<void> _refresh(ServerConfig server) async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final client = PluginClient(server);
+      final status = await client.status();
+      final page = await client.logs();
+      if (!mounted) return;
+      setState(() {
+        _status = status;
+        _page = page;
+      });
+    } on PluginException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } catch (error) {
+      if (mounted) setState(() => _error = '$error');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _setLevel(ServerConfig server, String level) async {
+    setState(() {
+      _busyLevel = level;
+      _error = null;
+    });
+    try {
+      await PluginClient(server).setLogLevel(level);
+      await _refresh(server);
+    } on PluginException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } catch (error) {
+      if (mounted) setState(() => _error = '$error');
+    } finally {
+      if (mounted) setState(() => _busyLevel = null);
+    }
+  }
+
+  Future<void> _clear(ServerConfig server) async {
+    setState(() => _error = null);
+    try {
+      await PluginClient(server).clearLogs();
+      await _refresh(server);
+    } on PluginException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } catch (error) {
+      if (mounted) setState(() => _error = '$error');
+    }
+  }
+
+  Future<void> _save() async {
+    final page = _page;
+    if (page == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final saved = await ToolFileSaver.save(
+        fileName: 'lm-computer-logs-${_fileStamp()}.jsonl',
+        content: page.toJsonl(),
+      );
+      if (!mounted || !saved) return;
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(L10n.t('Дамп сохранён'))));
+    } catch (error) {
+      if (!mounted) return;
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              L10n.tf('Не удалось сохранить дамп: {error}', {'error': error}),
+            ),
+          ),
+        );
+    }
+  }
+
+  String _fileStamp() {
+    final now = DateTime.now();
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${now.year}${two(now.month)}${two(now.day)}'
+        '-${two(now.hour)}${two(now.minute)}${two(now.second)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final server = context.select<AppState, ServerConfig?>(
+      (state) => state.activeServer,
+    );
+    final scheme = Theme.of(context).colorScheme;
+    final page = _page;
+    final entries = page?.entries.take(50).toList() ?? const <PluginLogEntry>[];
+    final level = _busyLevel ?? _status?.logLevel ?? page?.level ?? 'info';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.dns_outlined, size: 18, color: scheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  L10n.t('Логи плагина'),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                if (server != null)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: Text(
+                      server.name,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (!_configured(server))
+              Text(
+                L10n.t('Укажите адрес и токен плагина в настройках сервера.'),
+                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+              )
+            else ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _status == null
+                          ? L10n.t('lm-computer: нет данных')
+                          : L10n.tf(
+                              'lm-computer {version} · лог: {level} · записей: {count}',
+                              {
+                                'version': _status!.version.isEmpty
+                                    ? '?'
+                                    : _status!.version,
+                                'level': level,
+                                'count': _status!.logEntries,
+                              },
+                            ),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  if (_loading)
+                    const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  else
+                    IconButton(
+                      onPressed: () => _refresh(server!),
+                      icon: const Icon(Icons.refresh_rounded, size: 18),
+                      tooltip: L10n.t('Обновить'),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  DropdownButton<String>(
+                    value: const ['off', 'info', 'debug'].contains(level)
+                        ? level
+                        : 'info',
+                    items: const [
+                      DropdownMenuItem(value: 'off', child: Text('off')),
+                      DropdownMenuItem(value: 'info', child: Text('info')),
+                      DropdownMenuItem(value: 'debug', child: Text('debug')),
+                    ],
+                    onChanged: _busyLevel == null
+                        ? (value) {
+                            if (value != null) _setLevel(server!, value);
+                          }
+                        : null,
+                  ),
+                  TextButton.icon(
+                    onPressed: page == null || (_page!.entries.isEmpty)
+                        ? null
+                        : _save,
+                    icon: const Icon(Icons.save_alt_rounded, size: 18),
+                    label: Text(L10n.t('Сохранить дамп…')),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => _clear(server!),
+                    icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                    label: Text(L10n.t('Очистить')),
+                  ),
+                ],
+              ),
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    _error!,
+                    style: TextStyle(fontSize: 12, color: scheme.error),
+                  ),
+                ),
+              if (page != null && entries.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    L10n.t(
+                      'Пока нет записей. Включите debug и повторите запрос.',
+                    ),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              if (entries.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                ...entries.map((entry) => _PluginLogLine(entry: entry)),
+                const SizedBox(height: 4),
+                Text(
+                  L10n.t('Показаны последние 50 записей.'),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PluginLogLine extends StatelessWidget {
+  const _PluginLogLine({required this.entry});
+
+  final PluginLogEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final color = switch (entry.level) {
+      'error' => scheme.error,
+      'warn' => AppColors.of(context).warning,
+      'debug' => scheme.onSurfaceVariant,
+      _ => scheme.onSurface,
+    };
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Text(
+        '${_pluginTime(entry.time)}  ${entry.level.padRight(5)}  '
+        '${entry.event}  ${entry.summary}',
+        style: TextStyle(
+          fontFamily: 'JetBrainsMono',
+          fontSize: 11,
+          height: 1.35,
+          color: color,
+        ),
+      ),
+    );
+  }
+}
+
+String _pluginTime(DateTime? time) {
+  if (time == null) return '--:--:--.---';
+  String two(int value) => value.toString().padLeft(2, '0');
+  return '${two(time.hour)}:${two(time.minute)}:${two(time.second)}.'
+      '${time.millisecond.toString().padLeft(3, '0')}';
 }
 
 class _ProbeCard extends StatelessWidget {

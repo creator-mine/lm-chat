@@ -117,7 +117,9 @@ class HistoryStore {
           !_warnedNoKeystore &&
           data.servers.any(
             (server) =>
-                server.apiKey.isNotEmpty || server.bridgeToken.isNotEmpty,
+                server.apiKey.isNotEmpty ||
+                server.bridgeToken.isNotEmpty ||
+                server.pluginToken.isNotEmpty,
           )) {
         _warnedNoKeystore = true;
         onStatus?.call(
@@ -153,10 +155,17 @@ class HistoryStore {
       if (!stored.isEmpty) {
         server.apiKey = stored.apiKey;
         server.bridgeToken = stored.bridgeToken;
-      } else if (server.apiKey.isNotEmpty || server.bridgeToken.isNotEmpty) {
+        server.pluginToken = stored.pluginToken;
+      } else if (server.apiKey.isNotEmpty ||
+          server.bridgeToken.isNotEmpty ||
+          server.pluginToken.isNotEmpty) {
         await _secretStore.write(
           server.id,
-          ServerSecrets(apiKey: server.apiKey, bridgeToken: server.bridgeToken),
+          ServerSecrets(
+            apiKey: server.apiKey,
+            bridgeToken: server.bridgeToken,
+            pluginToken: server.pluginToken,
+          ),
         );
         migrated = true;
       }
@@ -171,7 +180,11 @@ class HistoryStore {
       for (final server in data.servers) {
         await _secretStore.write(
           server.id,
-          ServerSecrets(apiKey: server.apiKey, bridgeToken: server.bridgeToken),
+          ServerSecrets(
+            apiKey: server.apiKey,
+            bridgeToken: server.bridgeToken,
+            pluginToken: server.pluginToken,
+          ),
         );
       }
       _secretsDirty = false;
@@ -193,6 +206,8 @@ class HistoryStore {
       if (apiKey is String && apiKey.isNotEmpty) return true;
       final bridgeToken = value['bridgeToken'];
       if (bridgeToken is String && bridgeToken.isNotEmpty) return true;
+      final pluginToken = value['pluginToken'];
+      if (pluginToken is String && pluginToken.isNotEmpty) return true;
       for (final item in value.values) {
         if (_containsSecrets(item)) return true;
       }
@@ -208,7 +223,7 @@ class HistoryStore {
   /// a key split between chunks is still found.
   Future<bool> _fileContainsSecrets(File file) async {
     if (!await file.exists()) return false;
-    const markers = ['"apiKey"', '"bridgeToken"'];
+    const markers = ['"apiKey"', '"bridgeToken"', '"pluginToken"'];
     final reader = await file.open();
     try {
       const chunkSize = 64 * 1024;

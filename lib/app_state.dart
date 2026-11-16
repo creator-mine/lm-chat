@@ -1933,6 +1933,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
           // refuse cleartext public addresses before they can become active.
           server.apiKey = '';
           server.bridgeToken = '';
+          server.pluginToken = '';
           if (server.generationSecurityError != null) {
             AppLog.instance.warning(
               'Пропущен небезопасный сервер из импорта',
@@ -2016,7 +2017,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       for (final incoming in preview.servers) {
         final server = incoming.clone()
           ..apiKey = ''
-          ..bridgeToken = '';
+          ..bridgeToken = ''
+          ..pluginToken = '';
         if (server.generationSecurityError != null) continue;
         ServerConfig? existing;
         for (final current in data.servers) {
@@ -2043,6 +2045,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
                 bridgeUrl: server.bridgeUrl,
                 bridgeToken: server.bridgeToken,
                 chatViaBridge: server.chatViaBridge,
+                pluginUrl: server.pluginUrl,
+                pluginToken: server.pluginToken,
               )
             : server;
         newServers.add(target);
@@ -2609,6 +2613,17 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
           }
           if (existing.chatViaBridge != incoming.chatViaBridge) {
             existing.chatViaBridge = incoming.chatViaBridge;
+            changed = true;
+          }
+          if (existing.pluginUrl != incoming.pluginUrl) {
+            final samePlugin =
+                existing.normalizedPlugin.toLowerCase() ==
+                incoming.normalizedPlugin.toLowerCase();
+            existing.pluginUrl = incoming.pluginUrl;
+            if (!samePlugin) {
+              existing.pluginToken = '';
+              secretsChanged = true;
+            }
             changed = true;
           }
           if (changed) {

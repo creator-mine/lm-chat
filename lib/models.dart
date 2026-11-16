@@ -354,6 +354,8 @@ class ServerConfig {
     this.chatViaBridge = true,
     this.mcpEnabled = false,
     this.mcpIntegrationId = defaultMcpIntegrationId,
+    this.pluginUrl = '',
+    this.pluginToken = '',
   });
 
   final String id;
@@ -365,6 +367,11 @@ class ServerConfig {
   /// Needed because the LM Studio REST API has no GPU offload parameter.
   String bridgeUrl;
   String bridgeToken;
+
+  /// Optional REST API of the `lm-computer` plugin. Its token is different from
+  /// the bridge token and is only used for diagnostics (status and logs).
+  String pluginUrl;
+  String pluginToken;
 
   /// Send chat requests through the bridge so the answer is generated on the
   /// server and survives the app being backgrounded or killed.
@@ -413,6 +420,47 @@ class ServerConfig {
     }
     return value;
   }
+
+  /// Accepts `192.168.1.5:1236` or `http://host:1236/`.
+  String get normalizedPlugin {
+    var value = pluginUrl.trim();
+    if (value.isEmpty) return value;
+    if (!value.contains('://')) value = 'http://$value';
+    while (value.endsWith('/')) {
+      value = value.substring(0, value.length - 1);
+    }
+    return value;
+  }
+
+  /// Default port of the `lm-computer` REST API.
+  static const int defaultPluginPort = 1236;
+
+  /// The plugin usually runs on the same machine as LM Studio, so its address
+  /// is the server host with [defaultPluginPort]. Empty for public hosts: the
+  /// plugin speaks plain HTTP, so sending its token there would leak it.
+  static String pluginUrlForBase(String baseUrl) {
+    final value = _normalizedUrl(baseUrl);
+    if (value == null) return '';
+    final uri = Uri.tryParse(value);
+    final host = uri?.host;
+    if (host == null || host.isEmpty) return '';
+    if (!isPrivateUrl(Uri(scheme: 'http', host: host).toString())) return '';
+    return Uri(scheme: 'http', host: host, port: defaultPluginPort).toString();
+  }
+
+  /// Configured plugin address, or the one derived from [baseUrl].
+  String get effectivePluginUrl {
+    final configured = normalizedPlugin;
+    return configured.isNotEmpty ? configured : pluginUrlForBase(baseUrl);
+  }
+
+  bool get hasPlugin => effectivePluginUrl.isNotEmpty;
+
+  Uri pluginUri(String path) => Uri.parse('$effectivePluginUrl/$path');
+
+  /// Error for the plugin address only. Diagnostics must not send the plugin
+  /// token over cleartext to a public host.
+  String? get pluginSecurityError => _securityErrorFor(effectivePluginUrl);
 
   /// Default port of the bundled `lms_gpu_bridge.py` HTTP bridge.
   static const int defaultBridgePort = 1235;
@@ -539,6 +587,8 @@ class ServerConfig {
     if (mcpEnabled) 'mcpEnabled': true,
     if (mcpEnabled && mcpIntegrationId != defaultMcpIntegrationId)
       'mcpIntegrationId': mcpIntegrationId,
+    if (pluginUrl.trim().isNotEmpty) 'pluginUrl': pluginUrl.trim(),
+    if (includeSecrets && pluginToken.isNotEmpty) 'pluginToken': pluginToken,
   };
 
   factory ServerConfig.fromJson(Map<String, dynamic> json) => ServerConfig(
@@ -552,6 +602,8 @@ class ServerConfig {
     mcpEnabled: json['mcpEnabled'] as bool? ?? false,
     mcpIntegrationId:
         json['mcpIntegrationId'] as String? ?? defaultMcpIntegrationId,
+    pluginUrl: json['pluginUrl'] as String? ?? '',
+    pluginToken: json['pluginToken'] as String? ?? '',
   );
 
   ServerConfig clone() => ServerConfig(
@@ -564,6 +616,8 @@ class ServerConfig {
     chatViaBridge: chatViaBridge,
     mcpEnabled: mcpEnabled,
     mcpIntegrationId: mcpIntegrationId,
+    pluginUrl: pluginUrl,
+    pluginToken: pluginToken,
   );
 }
 
