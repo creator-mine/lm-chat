@@ -160,7 +160,11 @@ class _PluginLogCardState extends State<_PluginLogCard> {
     if (_started) return;
     _started = true;
     final server = context.read<AppState>().activeServer;
-    if (_configured(server)) unawaited(_refresh(server!));
+    if (_configured(server)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_refresh(server!));
+      });
+    }
   }
 
   bool _configured(ServerConfig? server) =>
