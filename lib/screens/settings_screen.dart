@@ -1120,11 +1120,9 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
   late final TextEditingController _name;
   late final TextEditingController _url;
   late final TextEditingController _key;
-  late final TextEditingController _bridgeToken;
   late bool _chatViaBridge;
   late bool _mcpEnabled;
   late final TextEditingController _mcpIntegration;
-  late final TextEditingController _pluginUrl;
   late final TextEditingController _pluginToken;
 
   /// Bridge address stored with the server. When the bridge is enabled from
@@ -1149,9 +1147,6 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
     _key = TextEditingController(text: widget.server?.apiKey ?? '');
     _bridgeAddress = widget.server?.bridgeUrl.trim() ?? '';
     _bridgeEnabled = _bridgeAddress.isNotEmpty;
-    _bridgeToken = TextEditingController(
-      text: widget.server?.bridgeToken ?? '',
-    );
     _chatViaBridge = widget.server?.chatViaBridge ?? true;
     _mcpEnabled = widget.server?.mcpEnabled ?? false;
     _mcpIntegration = TextEditingController(
@@ -1159,7 +1154,6 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
           widget.server?.mcpIntegrationId ??
           ServerConfig.defaultMcpIntegrationId,
     );
-    _pluginUrl = TextEditingController(text: widget.server?.pluginUrl ?? '');
     _pluginToken = TextEditingController(
       text: widget.server?.pluginToken ?? '',
     );
@@ -1170,9 +1164,7 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
     _name.dispose();
     _url.dispose();
     _key.dispose();
-    _bridgeToken.dispose();
     _mcpIntegration.dispose();
-    _pluginUrl.dispose();
     _pluginToken.dispose();
     super.dispose();
   }
@@ -1199,7 +1191,7 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
     return ServerConfig.bridgeUrlForBase(_url.text);
   }
 
-  String get _pluginHint => ServerConfig.pluginUrlForBase(_url.text);
+  String get _derivedPluginUrl => ServerConfig.pluginUrlForBase(_url.text);
 
   void _toggleBridge() {
     if (_bridgeEnabled) {
@@ -1228,13 +1220,11 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
     baseUrl: _url.text.trim(),
     apiKey: _key.text.trim(),
     bridgeUrl: _effectiveBridgeUrl,
-    bridgeToken: _bridgeToken.text.trim(),
     chatViaBridge: _chatViaBridge,
     mcpEnabled: _mcpEnabled,
     mcpIntegrationId: _mcpIntegration.text.trim().isEmpty
         ? ServerConfig.defaultMcpIntegrationId
         : _mcpIntegration.text.trim(),
-    pluginUrl: _pluginUrl.text.trim(),
     pluginToken: _pluginToken.text.trim(),
   );
 
@@ -1380,6 +1370,36 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
                 labelText: L10n.t('API-токен (если включён)'),
               ),
             ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Плагин lm-computer — токен для плагина и моста',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _pluginToken,
+              obscureText: true,
+              decoration: InputDecoration(
+                labelText: L10n.t('Токен плагина'),
+                helperText: _derivedPluginUrl.isEmpty
+                    ? L10n.t(
+                        'Из ~/.config/lm-computer/token.txt. '
+                        'Сначала укажите адрес сервера.',
+                      )
+                    : L10n.tf(
+                        'Из ~/.config/lm-computer/token.txt. Общий для плагина '
+                        'и моста. Адрес: {url}',
+                        {'url': _derivedPluginUrl},
+                      ),
+              ),
+            ),
             const SizedBox(height: 16),
             Align(
               alignment: Alignment.centerLeft,
@@ -1463,15 +1483,14 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
                   ),
                 ),
               ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _bridgeToken,
-              obscureText: true,
-              decoration: InputDecoration(
-                labelText: L10n.t('Токен моста (BRIDGE_TOKEN)'),
-                helperText: L10n.t(
-                  'Пусто — использовать токен плагина из блока ниже. '
-                  'Подходит, если мост читает token.txt или не требует токена.',
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                L10n.t('Мост использует токен плагина выше.'),
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: scheme.onSurfaceVariant,
                 ),
               ),
             ),
@@ -1527,45 +1546,6 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
                 ),
               ),
             ],
-            const Divider(height: 24),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Плагин lm-computer — необязательно',
-                style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                  color: scheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _pluginUrl,
-              keyboardType: TextInputType.url,
-              autocorrect: false,
-              decoration: InputDecoration(
-                labelText: L10n.t('Адрес плагина'),
-                hintText: _pluginHint.isEmpty
-                    ? 'http://192.168.1.50:1236'
-                    : _pluginHint,
-                helperText: L10n.t(
-                  'Пусто — использовать адрес LM Studio с портом 1236.',
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _pluginToken,
-              obscureText: true,
-              decoration: InputDecoration(
-                labelText: L10n.t('Токен плагина'),
-                helperText: L10n.t(
-                  'Из ~/.config/lm-computer/token.txt. Нужен для логов и '
-                  'статуса плагина.',
-                ),
-              ),
-            ),
             const SizedBox(height: 4),
             Align(
               alignment: Alignment.centerLeft,

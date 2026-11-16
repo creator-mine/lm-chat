@@ -58,7 +58,8 @@ void main() {
 
     expect(find.text('Адрес мостика'), findsNothing);
     expect(find.text('Включить мост'), findsOneWidget);
-    expect(find.text('Токен моста (BRIDGE_TOKEN)'), findsOneWidget);
+    expect(find.text('Токен моста (BRIDGE_TOKEN)'), findsNothing);
+    expect(find.text('Токен плагина'), findsOneWidget);
 
     await tester.tap(find.text('Включить мост'));
     await tester.pumpAndSettle();
@@ -69,7 +70,7 @@ void main() {
     final tokenField = find.byWidgetPredicate(
       (widget) =>
           widget is TextField &&
-          widget.decoration?.labelText == 'Токен моста (BRIDGE_TOKEN)',
+          widget.decoration?.labelText == 'Токен плагина',
     );
     await tester.ensureVisible(tokenField);
     await tester.enterText(tokenField, 'secret-token');
@@ -78,7 +79,9 @@ void main() {
 
     expect(saved, isNotNull);
     expect(saved!.bridgeUrl, 'http://192.168.1.50:1235');
-    expect(saved!.bridgeToken, 'secret-token');
+    expect(saved!.bridgeToken, isEmpty);
+    expect(saved!.pluginToken, 'secret-token');
+    expect(saved!.effectiveBridgeToken, 'secret-token');
     expect(saved!.chatViaBridge, isTrue);
   });
 
@@ -123,10 +126,10 @@ void main() {
 
     expect(saved, isNotNull);
     expect(saved!.bridgeUrl, 'http://192.168.1.50:2345');
-    expect(saved!.bridgeToken, 'old-token');
+    expect(saved!.bridgeToken, isEmpty);
   });
 
-  testWidgets('server dialog saves the plugin address and token', (
+  testWidgets('server dialog saves the plugin token without an address', (
     tester,
   ) async {
     ServerConfig? saved;
@@ -152,13 +155,8 @@ void main() {
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
 
-    final urlField = find.byWidgetPredicate(
-      (widget) =>
-          widget is TextField &&
-          widget.decoration?.labelText == 'Адрес плагина',
-    );
-    await tester.ensureVisible(urlField);
-    await tester.enterText(urlField, 'http://192.168.1.50:2236');
+    expect(find.text('Адрес плагина'), findsNothing);
+    expect(find.text('Токен плагина'), findsOneWidget);
 
     final tokenField = find.byWidgetPredicate(
       (widget) =>
@@ -172,7 +170,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(saved, isNotNull);
-    expect(saved!.pluginUrl, 'http://192.168.1.50:2236');
+    expect(saved!.pluginUrl, isEmpty);
     expect(saved!.pluginToken, 'plugin-token');
+    expect(saved!.effectivePluginUrl, 'http://192.168.1.100:1236');
   });
 }

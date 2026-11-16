@@ -180,6 +180,18 @@ class L10n {
         'No entries yet. Enable debug and repeat the request.',
     'Показаны последние 50 записей.': 'Showing the last 50 entries.',
     'Плагин lm-computer — необязательно': 'lm-computer plugin — optional',
+    'Плагин lm-computer — токен для плагина и моста':
+        'lm-computer — one token for the plugin and bridge',
+    'Из ~/.config/lm-computer/token.txt. Общий для плагина '
+            'и моста. Адрес: {url}':
+        'From ~/.config/lm-computer/token.txt. Shared by the plugin '
+        'and bridge. Address: {url}',
+    'Из ~/.config/lm-computer/token.txt. '
+            'Сначала укажите адрес сервера.':
+        'From ~/.config/lm-computer/token.txt. '
+        'Set the server address first.',
+    'Мост использует токен плагина выше.':
+        'The bridge uses the plugin token above.',
     'Адрес плагина': 'Plugin address',
     'Пусто — использовать адрес LM Studio с портом 1236.':
         'Leave empty to use the LM Studio host with port 1236.',

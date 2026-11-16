@@ -264,10 +264,10 @@ void main() {
     expect(server.effectiveBridgeToken, 'plugin-token');
 
     server.bridgeToken = 'bridge-token';
-    expect(server.effectiveBridgeToken, 'bridge-token');
-
-    server.bridgeToken = '   ';
     expect(server.effectiveBridgeToken, 'plugin-token');
+
+    server.pluginToken = '';
+    expect(server.effectiveBridgeToken, 'bridge-token');
   });
 
   test('round-trips the plugin token through the secret store', () async {
