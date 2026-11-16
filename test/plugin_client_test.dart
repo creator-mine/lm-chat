@@ -254,6 +254,22 @@ void main() {
     expect(restored.pluginToken, 'plugin-token');
   });
 
+  test('the bridge falls back to the plugin token', () {
+    final server = ServerConfig(
+      id: 's1',
+      name: 'LM Studio',
+      baseUrl: 'http://192.168.0.183:1234',
+      pluginToken: 'plugin-token',
+    );
+    expect(server.effectiveBridgeToken, 'plugin-token');
+
+    server.bridgeToken = 'bridge-token';
+    expect(server.effectiveBridgeToken, 'bridge-token');
+
+    server.bridgeToken = '   ';
+    expect(server.effectiveBridgeToken, 'plugin-token');
+  });
+
   test('round-trips the plugin token through the secret store', () async {
     final store = MemorySecretStore();
     await store.write(

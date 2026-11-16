@@ -547,6 +547,10 @@ class L10n {
     'Отключить': 'Disable',
     'Адрес моста: {url}': 'Bridge address: {url}',
     'Токен моста (BRIDGE_TOKEN)': 'Bridge token (BRIDGE_TOKEN)',
+    'Пусто — использовать токен плагина из блока ниже. '
+            'Подходит, если мост читает token.txt или не требует токена.':
+        'Leave empty to use the plugin token below. '
+        'Works when the bridge reads token.txt or has no token.',
     'Оставьте пустым, если на сервере не задан BRIDGE_TOKEN.':
         'Leave empty if BRIDGE_TOKEN is not set on the server.',
     'Чат через мост': 'Chat via bridge',

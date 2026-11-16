@@ -20,7 +20,12 @@ BRIDGE_TOKEN='длинный-случайный-токен' python3 /opt/lm-gpu-
 ```
 
 Без `BRIDGE_TOKEN` мостик откажется слушать `0.0.0.0`. Пустой токен разрешён
-только на loopback (`BRIDGE_HOST=127.0.0.1`).
+только на loopback (`BRIDGE_HOST=127.0.0.1`). Вместо отдельного токена можно
+указать файл:
+
+```bash
+BRIDGE_TOKEN_FILE=~/.config/lm-computer/token.txt python3 /opt/lm-gpu-bridge/lms_gpu_bridge.py
+```
 
 Проверка:
 
@@ -42,14 +47,29 @@ python3 tools/test_lms_gpu_bridge.py
 ## Автозапуск
 
 В `tools/lms-gpu-bridge.service` замените `__USER__` на пользователя, который
-запускает LM Studio, создайте файл с токеном и установите сервис:
+запускает LM Studio, и установите сервис. Есть два варианта токена.
+
+**Общий токен с плагином (проще).** Оставьте `BRIDGE_TOKEN` пустым: сервис уже
+содержит `BRIDGE_TOKEN_FILE=%h/.config/lm-computer/token.txt`, а мост запущен от
+того же пользователя, что и плагин.
 
 ```bash
-sudo sh -c 'umask 077; echo "BRIDGE_TOKEN=$(openssl rand -hex 32)" > /etc/lm-gpu-bridge.env'
 sudo cp tools/lms-gpu-bridge.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now lms-gpu-bridge
 sudo systemctl status lms-gpu-bridge
+```
+
+В `/etc/lm-gpu-bridge.env` при этом не должно быть `BRIDGE_TOKEN`. Файл
+`~/.config/lm-computer/token.txt` создаёт плагин; ротация токена подхватывается
+без перезапуска моста. Если файл пропадёт или станет пустым, мост перестанет
+принимать запросы, а не откроется без авторизации.
+
+**Отдельный токен.** Создайте env-файл — тогда `BRIDGE_TOKEN` имеет приоритет
+над файлом:
+
+```bash
+sudo sh -c 'umask 077; echo "BRIDGE_TOKEN=$(openssl rand -hex 32)" > /etc/lm-gpu-bridge.env'
 ```
 
 Токен лежит в `/etc/lm-gpu-bridge.env` (только root, `chmod 600`). Не
@@ -73,8 +93,10 @@ sudo systemctl status lms-gpu-bridge
 ## Подключение в приложении
 
 **Настройки → сервер → Изменить → «Включить мост»**. Адрес вводить не нужно:
-приложение берёт адрес LM Studio и подставляет порт `1235`. Остаётся ввести
-токен моста и при желании включить «Чат через мост».
+приложение берёт адрес LM Studio и подставляет порт `1235`. Если мост читает
+`~/.config/lm-computer/token.txt`, поле «Токен моста» можно оставить пустым —
+приложение возьмёт токен плагина. Для отдельного токена введите его в поле
+«Токен моста». При желании включите «Чат через мост».
 
 Когда мостик задан:
 
@@ -110,6 +132,8 @@ SSE и складывает токены в буфер. Приложение з�
 | `LMS_BIN` | `lms` | путь к CLI `lms` |
 | `LMS_API_KEY` | пусто | токен LM Studio, если включён |
 | `LMS_HOST` | `127.0.0.1:1234` | LM Studio на другом компьютере |
+| `BRIDGE_TOKEN` | пусто | отдельный токен моста (приоритет над файлом) |
+| `BRIDGE_TOKEN_FILE` | пусто | файл с токеном, обычно `~/.config/lm-computer/token.txt` |
 | `BRIDGE_HOST` | `0.0.0.0` | адрес мостика |
 | `BRIDGE_PORT` | `1235` | порт мостика |
 | `BRIDGE_LOAD_TIMEOUT` | 900 | сколько ждать загрузку модели |

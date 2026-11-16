@@ -917,6 +917,21 @@ void main() {
 
   // ------------------------------------------------------------------ bridge
 
+  test('bridge requests fall back to the plugin token', () async {
+    final fallback = ServerConfig(
+      id: 'fallback',
+      name: 'local',
+      baseUrl: config.baseUrl,
+      bridgeUrl: config.bridgeUrl,
+      pluginToken: 'bridge-token',
+    );
+    final client = LmClient();
+    addTearDown(client.close);
+
+    await client.bridgeLoad(fallback, 'qwen3-8b');
+    expect(receivedBridgeAuth, 'Bearer bridge-token');
+  });
+
   test('bridgeHealth reports the CLI version', () async {
     final client = LmClient();
     addTearDown(client.close);

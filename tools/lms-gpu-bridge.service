@@ -19,7 +19,14 @@ Environment=BRIDGE_PORT=1235
 # Environment=BRIDGE_JOB_TTL=3600
 # Environment=BRIDGE_MAX_JOBS=8
 
-# Секреты не храните в этом файле. Создайте /etc/lm-gpu-bridge.env:
+# Токен: либо BRIDGE_TOKEN в /etc/lm-gpu-bridge.env, либо общий токен
+# плагина lm-computer (удобнее — один секрет на оба сервиса). Второй вариант
+# работает, потому что мост запущен от того же пользователя:
+Environment=BRIDGE_TOKEN_FILE=%h/.config/lm-computer/token.txt
+# Если файл плагина недоступен или пуст, мост откажется запускаться, а не
+# отключит авторизацию.
+# Секреты не храните в этом файле. Для отдельного токена создайте
+# /etc/lm-gpu-bridge.env:
 #   BRIDGE_TOKEN=<длинный случайный токен>
 #   LMS_API_KEY=<токен LM Studio, если включена авторизация>
 #   sudo chmod 600 /etc/lm-gpu-bridge.env

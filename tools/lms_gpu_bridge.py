@@ -20,6 +20,9 @@ Environment variables:
     LMS_API_KEY          API token of LM Studio, if auth is enabled
     BRIDGE_TOKEN         bearer token clients must send. Required unless
                          BRIDGE_HOST is a loopback address
+    BRIDGE_TOKEN_FILE    read the bearer token from this file when BRIDGE_TOKEN
+                         is empty (default for the lm-computer plugin:
+                         ~/.config/lm-computer/token.txt)
     BRIDGE_HOST          bind address (default: 0.0.0.0)
     BRIDGE_PORT          port (default: 1235)
     BRIDGE_LOAD_TIMEOUT  seconds to wait for a load (default: 900)
@@ -78,6 +81,7 @@ LMS_BIN = os.environ.get("LMS_BIN", "lms")
 LMS_HOST = os.environ.get("LMS_HOST", "").strip()
 LMS_API_KEY = os.environ.get("LMS_API_KEY", "").strip()
 TOKEN = os.environ.get("BRIDGE_TOKEN", "").strip()
+TOKEN_FILE = os.environ.get("BRIDGE_TOKEN_FILE", "").strip()
 HOST = os.environ.get("BRIDGE_HOST", "0.0.0.0")
 PORT = int(os.environ.get("BRIDGE_PORT", "1235"))
 LOAD_TIMEOUT = int(os.environ.get("BRIDGE_LOAD_TIMEOUT", "900"))
@@ -95,6 +99,38 @@ MAX_LMS_OUTPUT = int(
 )
 
 AUTH_SCHEME = "Bearer "
+
+_TOKEN_CACHE: tuple[int, str] | None = None
+
+
+def _token_from_file() -> str:
+    """Reads the token file, reusing it until its mtime changes."""
+    global _TOKEN_CACHE
+    if not TOKEN_FILE:
+        return ""
+    path = os.path.expanduser(TOKEN_FILE)
+    try:
+        stamp = os.stat(path).st_mtime_ns
+        if _TOKEN_CACHE is None or _TOKEN_CACHE[0] != stamp:
+            with open(path, encoding="utf-8") as handle:
+                _TOKEN_CACHE = (stamp, handle.read().strip())
+        return _TOKEN_CACHE[1]
+    except OSError:
+        return ""
+
+
+def auth_token() -> str | None:
+    """The token clients must send.
+
+    None means a token file was configured but is missing or empty. Treating
+    that as "no authentication" would silently open the bridge, so callers must
+    reject every request instead.
+    """
+    if TOKEN:
+        return TOKEN
+    if TOKEN_FILE:
+        return _token_from_file() or None
+    return ""
 
 # Bumped when the HTTP shape changes; clients can use /health to discover it.
 API_VERSION = 2
@@ -483,12 +519,16 @@ class Handler(BaseHTTPRequestHandler):
         self.connection.settimeout(READ_TIMEOUT)
 
     def _authorized(self) -> bool:
-        if not TOKEN:
+        token = auth_token()
+        if token is None:
+            # A configured token file is missing: fail closed.
+            return False
+        if not token:
             return True
         header = self.headers.get("Authorization", "")
         if not header.startswith(AUTH_SCHEME):
             return False
-        return hmac.compare_digest(header[len(AUTH_SCHEME):], TOKEN)
+        return hmac.compare_digest(header[len(AUTH_SCHEME):], token)
 
     def _send(self, status: int, payload: dict[str, Any]) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -738,12 +778,19 @@ LOOPBACK_HOSTS = {"127.0.0.1", "::1", "localhost"}
 
 def startup_error() -> str | None:
     """Rejects an unauthenticated bridge listening on the local network."""
-    if TOKEN or HOST.strip().lower() in LOOPBACK_HOSTS:
+    token = auth_token()
+    if token is None:
+        return (
+            "BRIDGE_TOKEN_FILE задан, но файл токена не читается или пуст. "
+            "Мостик не запущен: без токена любой в сети мог бы загружать и "
+            "выгружать модели. Проверьте путь и права файла."
+        )
+    if token or HOST.strip().lower() in LOOPBACK_HOSTS:
         return None
     return (
         "BRIDGE_TOKEN не задан. Мостик не запущен: без токена любой в сети "
-        "мог бы загружать и выгружать модели. Задайте BRIDGE_TOKEN или "
-        "привяжите мостик к 127.0.0.1 через BRIDGE_HOST."
+        "мог бы загружать и выгружать модели. Задайте BRIDGE_TOKEN, "
+        "BRIDGE_TOKEN_FILE или привяжите мостик к 127.0.0.1 через BRIDGE_HOST."
     )
 
 
@@ -752,9 +799,9 @@ def main() -> int:
     if error is not None:
         print(error, file=sys.stderr)
         return 2
-    if not TOKEN:
+    if not auth_token():
         print(
-            "ВНИМАНИЕ: BRIDGE_TOKEN не задан, мостик слушает только "
+            "ВНИМАНИЕ: токен не задан, мостик слушает только "
             "loopback-адрес. Для доступа с телефона задайте токен.",
             file=sys.stderr,
         )

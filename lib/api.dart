@@ -189,7 +189,7 @@ class LmClient {
 
   Map<String, String> _bridgeHeaders(ServerConfig server) {
     final headers = <String, String>{'Content-Type': 'application/json'};
-    final token = server.bridgeToken.trim();
+    final token = server.effectiveBridgeToken;
     if (token.isNotEmpty) {
       headers['Authorization'] = 'Bearer $token';
     }

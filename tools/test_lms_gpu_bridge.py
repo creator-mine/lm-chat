@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
+import tempfile
 import threading
 import time
 import unittest
@@ -77,6 +79,8 @@ class BridgeTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         bridge.TOKEN = TOKEN
+        bridge.TOKEN_FILE = ""
+        bridge._TOKEN_CACHE = None
         bridge.LMS_HOST = ""
         bridge.MAX_BODY = 65536
         cls.calls: list[list[str]] = []
@@ -152,6 +156,33 @@ class BridgeTest(unittest.TestCase):
             self.assertIsNone(bridge.startup_error())
         finally:
             bridge.TOKEN, bridge.HOST = old_token, old_host
+
+    def test_token_file_fallback_and_rotation(self) -> None:
+        old_token, old_file, old_host = bridge.TOKEN, bridge.TOKEN_FILE, bridge.HOST
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "token.txt"
+            path.write_text("file-token\n", encoding="utf-8")
+            try:
+                bridge.TOKEN = ""
+                bridge.TOKEN_FILE = str(path)
+                bridge._TOKEN_CACHE = None
+                bridge.HOST = "0.0.0.0"
+                self.assertEqual(bridge.auth_token(), "file-token")
+                self.assertIsNone(bridge.startup_error())
+
+                path.write_text("rotated-token\n", encoding="utf-8")
+                stamp = time.time_ns()
+                os.utime(path, ns=(stamp, stamp))
+                self.assertEqual(bridge.auth_token(), "rotated-token")
+
+                path.unlink()
+                bridge._TOKEN_CACHE = None
+                self.assertIsNone(bridge.auth_token())
+                self.assertIsNotNone(bridge.startup_error())
+            finally:
+                bridge.TOKEN, bridge.TOKEN_FILE = old_token, old_file
+                bridge.HOST = old_host
+                bridge._TOKEN_CACHE = None
 
     def test_load_max_with_context_and_ttl(self) -> None:
         status, payload = self.request(

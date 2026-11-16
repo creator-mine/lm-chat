@@ -1470,7 +1470,8 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
               decoration: InputDecoration(
                 labelText: L10n.t('Токен моста (BRIDGE_TOKEN)'),
                 helperText: L10n.t(
-                  'Оставьте пустым, если на сервере не задан BRIDGE_TOKEN.',
+                  'Пусто — использовать токен плагина из блока ниже. '
+                  'Подходит, если мост читает token.txt или не требует токена.',
                 ),
               ),
             ),

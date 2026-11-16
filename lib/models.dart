@@ -421,6 +421,13 @@ class ServerConfig {
     return value;
   }
 
+  /// Bridge token, falling back to the plugin token so one secret can protect
+  /// both services when the bridge reads `~/.config/lm-computer/token.txt`.
+  String get effectiveBridgeToken {
+    final bridge = bridgeToken.trim();
+    return bridge.isNotEmpty ? bridge : pluginToken.trim();
+  }
+
   /// Accepts `192.168.1.5:1236` or `http://host:1236/`.
   String get normalizedPlugin {
     var value = pluginUrl.trim();
