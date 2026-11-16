@@ -38,6 +38,7 @@ class ToolFileSaver {
       return 'text/javascript';
     }
     if (lower.endsWith('.json')) return 'application/json';
+    if (lower.endsWith('.jsonl')) return 'application/x-ndjson';
     if (lower.endsWith('.md')) return 'text/markdown';
     if (lower.endsWith('.xml')) return 'application/xml';
     if (lower.endsWith('.svg')) return 'image/svg+xml';

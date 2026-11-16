@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 
 import 'l10n.dart';
 import 'models.dart';
+import 'stream_probe.dart';
 
 class ApiException implements Exception {
   ApiException(this.message);
@@ -673,7 +674,14 @@ class LmClient {
   /// line: LM Studio delivers a huge tool call as one `data:` line, so a
   /// line-based timeout can fire while the line is still arriving.
   Stream<String> _sseLines(http.StreamedResponse response, String message) {
-    final bytes = response.stream.timeout(
+    Stream<List<int>> body = response.stream;
+    if (StreamProbe.instance.recording) {
+      body = body.map((chunk) {
+        StreamProbe.instance.bytes(chunk.length);
+        return chunk;
+      });
+    }
+    final bytes = body.timeout(
       idleTimeout,
       onTimeout: (sink) {
         sink.addError(ApiException(message));
@@ -805,10 +813,7 @@ class LmClient {
     int? contextLength,
   }) async* {
     _ensureBaseSafe(server);
-    final request = http.Request('POST', server.apiV1('chat'));
-    _headers(server).forEach((key, value) => request.headers[key] = value);
-    request.headers['Accept'] = 'text/event-stream';
-    request.body = jsonEncode(
+    final body = jsonEncode(
       buildMcpChatBody(
         model: model,
         messages: messages,
@@ -821,36 +826,61 @@ class LmClient {
         contextLength: contextLength,
       ),
     );
-
-    final response = await _http.send(request).timeout(responseTimeout);
-    if (response.statusCode != 200) {
-      final body = await response.stream.bytesToString();
-      throw ApiException(_httpError(response.statusCode, body));
-    }
-
-    final lines = _sseLines(
-      response,
-      'Сервер не присылал событий, пока готовил ответ. '
-      'Большой запрос или вызов инструмента мог не уложиться в таймаут. '
-      'Проверьте LM Studio и подключение к сети.',
+    final request = http.Request('POST', server.apiV1('chat'));
+    _headers(server).forEach((key, value) => request.headers[key] = value);
+    request.headers['Accept'] = 'text/event-stream';
+    request.body = body;
+    StreamProbe.instance.begin(
+      stream: 'mcp',
+      model: model,
+      integrationId: integrationId,
+      messages: messages.length,
+      requestBytes: utf8.encode(body).length,
+      idleTimeout: idleTimeout,
     );
 
-    await for (final line in lines) {
-      final trimmed = line.trim();
-      if (!trimmed.startsWith('data:')) continue;
-      final payload = trimmed.substring(5).trim();
-      if (payload.isEmpty) continue;
-
-      final Map<String, dynamic> json;
-      try {
-        json = jsonDecode(payload) as Map<String, dynamic>;
-      } catch (_) {
-        continue;
+    var completed = false;
+    try {
+      final response = await _http.send(request).timeout(responseTimeout);
+      if (response.statusCode != 200) {
+        final error = await response.stream.bytesToString();
+        throw ApiException(_httpError(response.statusCode, error));
       }
 
-      final chunk = mcpChunkFromEvent(json);
-      if (chunk != null) yield chunk;
-      if (json['type'] == 'chat.end') break;
+      final lines = _sseLines(
+        response,
+        'Сервер не присылал событий, пока готовил ответ. '
+        'Большой запрос или вызов инструмента мог не уложиться в таймаут. '
+        'Проверьте LM Studio и подключение к сети.',
+      );
+
+      await for (final line in lines) {
+        final trimmed = line.trim();
+        if (!trimmed.startsWith('data:')) continue;
+        final payload = trimmed.substring(5).trim();
+        if (payload.isEmpty) continue;
+
+        final Map<String, dynamic> json;
+        try {
+          json = jsonDecode(payload) as Map<String, dynamic>;
+        } catch (_) {
+          continue;
+        }
+
+        StreamProbe.instance.event(json, payloadBytes: payload.length);
+        final chunk = mcpChunkFromEvent(json);
+        if (chunk != null) yield chunk;
+        if (json['type'] == 'chat.end') break;
+      }
+      completed = true;
+    } catch (error) {
+      StreamProbe.instance.finish(
+        errorType: error.runtimeType.toString(),
+        messageLength: error.toString().length,
+      );
+      rethrow;
+    } finally {
+      StreamProbe.instance.finish(errorType: completed ? null : 'cancelled');
     }
   }
 }

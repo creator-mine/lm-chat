@@ -150,6 +150,26 @@ class L10n {
     'Лог скопирован': 'Log copied',
     'Скопировать лог': 'Copy log',
     'Очистить лог': 'Clear log',
+    'Запись потока': 'Stream recording',
+    'Записывать поток событий': 'Record the event stream',
+    'Пишутся только типы событий, время и размеры. '
+            'Промпты, пути и содержимое файлов не сохраняются.':
+        'Only event types, timings and sizes are recorded. '
+        'Prompts, paths and file contents are never saved.',
+    'Следующий запрос к модели будет записан.':
+        'The next model request will be recorded.',
+    'Пока нет записи.': 'No recording yet.',
+    'События': 'Events',
+    'Длительность': 'Duration',
+    'Максимальная пауза': 'Longest gap',
+    'Принято': 'Received',
+    'Поток': 'Stream',
+    'Запись остановлена лимитом': 'Recording stopped at the limit',
+    'События по типам': 'Events by type',
+    'Сохранить дамп…': 'Save dump…',
+    'Очистить запись': 'Clear recording',
+    'Дамп сохранён': 'Dump saved',
+    'Не удалось сохранить дамп: {error}': 'Could not save the dump: {error}',
     'Очистить чат': 'Clear chat',
     'Сбросить': 'Reset',
     'Готово': 'Done',

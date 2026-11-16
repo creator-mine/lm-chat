@@ -6,7 +6,9 @@ import '../app_log.dart';
 import '../app_state.dart';
 import '../app_version.dart';
 import '../l10n_text.dart';
+import '../stream_probe.dart';
 import '../theme.dart';
+import '../tool_file_saver.dart';
 
 /// Shows the in-memory app log and the current server/model state.
 ///
@@ -49,7 +51,10 @@ class DiagnosticsScreen extends StatelessWidget {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 900),
           child: ListenableBuilder(
-            listenable: AppLog.instance,
+            listenable: Listenable.merge([
+              AppLog.instance,
+              StreamProbe.instance,
+            ]),
             builder: (context, _) {
               final entries = AppLog.instance.entries.reversed.toList();
               return ListView(
@@ -96,6 +101,8 @@ class DiagnosticsScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
+                  const _ProbeCard(),
+                  const SizedBox(height: 12),
                   if (entries.isEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 32),
@@ -126,11 +133,186 @@ class DiagnosticsScreen extends StatelessWidget {
   }
 }
 
+class _ProbeCard extends StatelessWidget {
+  const _ProbeCard();
+
+  Future<void> _save(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final saved = await ToolFileSaver.save(
+        fileName: StreamProbe.instance.suggestedFileName,
+        content: StreamProbe.instance.toJsonl(),
+      );
+      if (!context.mounted || !saved) return;
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(L10n.t('Дамп сохранён'))));
+    } catch (error) {
+      if (!context.mounted) return;
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              L10n.tf('Не удалось сохранить дамп: {error}', {'error': error}),
+            ),
+          ),
+        );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final probe = StreamProbe.instance;
+    final scheme = Theme.of(context).colorScheme;
+    final counts = probe.typeCounts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.monitor_heart_outlined,
+                  size: 18,
+                  color: scheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  L10n.t('Запись потока'),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              L10n.t(
+                'Пишутся только типы событий, время и размеры. '
+                'Промпты, пути и содержимое файлов не сохраняются.',
+              ),
+              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              title: Text(
+                L10n.t('Записывать поток событий'),
+                style: const TextStyle(fontSize: 13),
+              ),
+              value: probe.enabled,
+              onChanged: (value) => probe.enabled = value,
+            ),
+            if (probe.hasCapture) ...[
+              const Divider(height: 16),
+              _InfoRow(label: 'События', value: '${probe.sseCount}'),
+              _InfoRow(
+                label: 'Длительность',
+                value: _probeDuration(probe.durationMs),
+              ),
+              _InfoRow(
+                label: 'Максимальная пауза',
+                value: '${(probe.maxGapMs / 1000).toStringAsFixed(1)} с',
+                labelWidth: 140,
+              ),
+              _InfoRow(
+                label: 'Принято',
+                value: '${(probe.totalBytes / 1024).toStringAsFixed(1)} КБ',
+              ),
+              if (probe.stream.isNotEmpty)
+                _InfoRow(
+                  label: 'Поток',
+                  value: probe.stream == 'mcp' && probe.integrationId.isNotEmpty
+                      ? 'MCP · ${probe.integrationId}'
+                      : probe.stream,
+                ),
+              if (probe.truncated)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    L10n.t('Запись остановлена лимитом'),
+                    style: TextStyle(fontSize: 12, color: scheme.error),
+                  ),
+                ),
+              if (counts.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  L10n.t('События по типам'),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                ...counts
+                    .take(10)
+                    .map(
+                      (entry) => Text(
+                        '${entry.key} × ${entry.value}',
+                        style: const TextStyle(
+                          fontFamily: 'JetBrainsMono',
+                          fontSize: 11.5,
+                        ),
+                      ),
+                    ),
+              ],
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  FilledButton.tonalIcon(
+                    onPressed: () => _save(context),
+                    icon: const Icon(Icons.save_alt_rounded, size: 18),
+                    label: Text(L10n.t('Сохранить дамп…')),
+                  ),
+                  TextButton.icon(
+                    onPressed: probe.clear,
+                    icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                    label: Text(L10n.t('Очистить запись')),
+                  ),
+                ],
+              ),
+            ] else
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  probe.enabled
+                      ? L10n.t('Следующий запрос к модели будет записан.')
+                      : L10n.t('Пока нет записи.'),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _probeDuration(int milliseconds) {
+  final total = milliseconds ~/ 1000;
+  final minutes = total ~/ 60;
+  final seconds = total % 60;
+  return '$minutes:${seconds.toString().padLeft(2, '0')}';
+}
+
 class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value});
+  const _InfoRow({
+    required this.label,
+    required this.value,
+    this.labelWidth = 112,
+  });
 
   final String label;
   final String value;
+  final double labelWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -141,7 +323,7 @@ class _InfoRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 112,
+            width: labelWidth,
             child: Text(
               label,
               style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant),

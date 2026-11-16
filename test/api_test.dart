@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lm_chat/api.dart';
 import 'package:lm_chat/models.dart';
+import 'package:lm_chat/stream_probe.dart';
 
 void main() {
   late HttpServer server;
@@ -797,6 +798,41 @@ void main() {
     expect(calls.last.output, contains('created'));
     expect(chunks.map((chunk) => chunk.content).join(), 'Готово');
     expect(chunks.last.usage?.totalTokens, 15);
+  });
+
+  test('the stream probe keeps metadata but not tool arguments', () async {
+    StreamProbe.instance
+      ..enabled = true
+      ..clear();
+    addTearDown(() {
+      StreamProbe.instance
+        ..enabled = false
+        ..clear();
+    });
+
+    final client = LmClient();
+    addTearDown(client.close);
+
+    await client
+        .streamChatWithMcp(
+          server: config,
+          model: 'qwen3-8b',
+          messages: [
+            {'role': 'user', 'content': 'создай папку'},
+          ],
+          integrationId: 'mcp/lm-computer',
+          temperature: 0,
+          topP: 1,
+          maxTokens: 0,
+        )
+        .toList();
+
+    final dump = StreamProbe.instance.toJsonl();
+    expect(dump, contains('"type":"begin"'));
+    expect(dump, contains('"type":"tool_call.arguments"'));
+    expect(dump, contains('"args_sha"'));
+    expect(dump, contains('"result":"completed"'));
+    expect(dump, isNot(contains('lmchat-test')));
   });
 
   test('streamChatWithMcp times out when the server goes quiet', () async {
