@@ -190,7 +190,7 @@ func (s *Session) Open(sealed []byte) ([]byte, error) {
 	aad := aadFor(s.readDir, s.readCount)
 	plain, err := s.read.Open(nil, nonce, sealed, aad)
 	if err != nil {
-		return nil, errors.New("e2e: authentication failed")
+		return nil, fmt.Errorf("e2e: authentication failed at counter %d (%d bytes): %w", s.readCount, len(sealed), err)
 	}
 	s.readCount++
 	return plain, nil

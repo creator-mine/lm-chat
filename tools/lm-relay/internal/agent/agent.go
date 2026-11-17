@@ -380,6 +380,7 @@ func (a *Agent) handleE2E(stream *tunnel.Stream) int {
 
 	resp, err := a.client.Do(httpReq)
 	if err != nil {
+		println("e2e local request failed:", err.Error())
 		if ctx.Err() != nil {
 			return 0
 		}
