@@ -22,7 +22,11 @@ type Server struct {
 	hub             *hub
 	log             *slog.Logger
 	responseTimeout time.Duration
+	started         time.Time
 }
+
+// Version is reported by the status endpoint.
+const Version = "0.2.0"
 
 // New builds a relay. The config must already be validated.
 func New(cfg Config, logger *slog.Logger) *Server {
@@ -39,6 +43,7 @@ func New(cfg Config, logger *slog.Logger) *Server {
 		hub:             newHub(),
 		log:             logger,
 		responseTimeout: timeout,
+		started:         time.Now(),
 	}
 }
 
@@ -154,6 +159,26 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 	if !secureEqual(r.Header.Get("X-Relay-Token"), dev.AccessToken) {
 		status = http.StatusUnauthorized
 		writeJSON(w, status, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	// The status endpoint is answered by the relay itself: it must work even
+	// when the agent is offline.
+	if path == "/_relay/status" {
+		sess := s.hub.get(deviceID)
+		online := sess != nil
+		streams := 0
+		if online {
+			streams = sess.conn.ActiveStreams()
+		}
+		status = http.StatusOK
+		writeJSON(w, status, map[string]any{
+			"ok":        true,
+			"online":    online,
+			"streams":   streams,
+			"version":   Version,
+			"uptime_ms": time.Since(s.started).Milliseconds(),
+		})
 		return
 	}
 

@@ -215,6 +215,16 @@ class L10n {
         'Copy it from lm-relay-agent -print-identity.',
     'Отпечаток: {fp}': 'Fingerprint: {fp}',
     'Укажите публичный ключ устройства': 'Set the device public key',
+    'нет данных': 'no data',
+    'онлайн': 'online',
+    'офлайн': 'offline',
+    'Relay не настроен. Укажите адрес, ID устройства и токен.':
+        'Relay is not configured. Set the address, device ID and token.',
+    'Нет данных от relay.': 'No data from the relay.',
+    'Агент подключён · потоков: {count} · relay {version}':
+        'Agent connected · streams: {count} · relay {version}',
+    'Агент не подключён · relay {version}': 'Agent offline · relay {version}',
+    'E2E включено': 'E2E enabled',
     'Адрес плагина': 'Plugin address',
     'Пусто — использовать адрес LM Studio с портом 1236.':
         'Leave empty to use the LM Studio host with port 1236.',

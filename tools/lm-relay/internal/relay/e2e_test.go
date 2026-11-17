@@ -201,6 +201,20 @@ func TestRoutesAndAuth(t *testing.T) {
 		t.Fatalf("unexpected models body: %s", body)
 	}
 
+	resp, body, err = s.request(t, http.MethodGet, "/_relay/status", nil, accessToken)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		t.Fatalf("relay status: %v %d %s", err, resp.StatusCode, body)
+	}
+	if !bytes.Contains(body, []byte(`"online":true`)) ||
+		!bytes.Contains(body, []byte(`"version":"0.2.0"`)) {
+		t.Fatalf("unexpected relay status: %s", body)
+	}
+
+	resp, _, err = s.request(t, http.MethodGet, "/_relay/status", nil, "")
+	if err != nil || resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("relay status without token: %v %d", err, resp.StatusCode)
+	}
+
 	resp, _, err = s.request(t, http.MethodGet, "/api/status", nil, "")
 	if err != nil || resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("missing token: %v %d", err, resp.StatusCode)
@@ -290,6 +304,25 @@ func TestOfflineAgentReturns503(t *testing.T) {
 		}
 		if time.Now().After(deadline) {
 			t.Fatalf("agent stayed online: %v %d", err, resp.StatusCode)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func TestRelayStatusWhenOffline(t *testing.T) {
+	s := newStack(t)
+	s.cancel()
+
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		resp, body, err := s.request(t, http.MethodGet, "/_relay/status", nil, accessToken)
+		if err == nil &&
+			resp.StatusCode == http.StatusOK &&
+			bytes.Contains(body, []byte(`"online":false`)) {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("relay status did not go offline: %v %d %s", err, resp.StatusCode, body)
 		}
 		time.Sleep(20 * time.Millisecond)
 	}

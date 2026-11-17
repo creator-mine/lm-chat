@@ -10,6 +10,7 @@ import '../app_version.dart';
 import '../l10n_text.dart';
 import '../models.dart';
 import '../plugin_client.dart';
+import '../relay_client.dart';
 import '../stream_probe.dart';
 import '../theme.dart';
 import '../tool_file_saver.dart';
@@ -105,6 +106,10 @@ class DiagnosticsScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
+                  if (server != null && server.hasRelay) ...[
+                    const _RelayCard(),
+                    const SizedBox(height: 12),
+                  ],
                   const _ProbeCard(),
                   const SizedBox(height: 12),
                   const _PluginLogCard(),
@@ -133,6 +138,222 @@ class DiagnosticsScreen extends StatelessWidget {
               );
             },
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RelayCard extends StatefulWidget {
+  const _RelayCard();
+
+  @override
+  State<_RelayCard> createState() => _RelayCardState();
+}
+
+class _RelayCardState extends State<_RelayCard> {
+  RelayStatus? _status;
+  String? _error;
+  String? _serverId;
+  bool _loading = false;
+  bool _started = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    final server = context.read<AppState>().activeServer;
+    if (_configured(server)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_refresh(server!));
+      });
+    }
+  }
+
+  bool _configured(ServerConfig? server) =>
+      server != null &&
+      server.hasRelay &&
+      server.effectiveRelayToken.isNotEmpty;
+
+  Future<void> _refresh(ServerConfig server) async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final status = await RelayClient(server).status();
+      if (!mounted) return;
+      setState(() {
+        _status = status;
+        _serverId = server.id;
+      });
+    } on RelayException catch (error) {
+      if (mounted) {
+        setState(() {
+          _status = null;
+          _error = error.message;
+          _serverId = server.id;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _status = null;
+          _error = '$error';
+          _serverId = server.id;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final server = context.select<AppState, ServerConfig?>(
+      (state) => state.activeServer,
+    );
+    final scheme = Theme.of(context).colorScheme;
+    final configured = _configured(server);
+    final status = _serverId == server?.id ? _status : null;
+    final error = _serverId == server?.id ? _error : null;
+    final online = status?.online == true;
+    final statusColor = status == null
+        ? scheme.onSurfaceVariant
+        : (online ? scheme.primary : scheme.error);
+
+    if (configured && _serverId != server!.id && !_loading) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_loading) unawaited(_refresh(server));
+      });
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.cloud_outlined, size: 18, color: scheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Relay',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                if (server != null)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: Text(
+                      server.name,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                const Spacer(),
+                if (configured)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      status == null
+                          ? L10n.t('нет данных')
+                          : (online ? L10n.t('онлайн') : L10n.t('офлайн')),
+                      style: TextStyle(fontSize: 11, color: statusColor),
+                    ),
+                  ),
+                if (_loading)
+                  const Padding(
+                    padding: EdgeInsets.only(left: 8),
+                    child: SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                else if (configured)
+                  IconButton(
+                    onPressed: () => _refresh(server!),
+                    icon: const Icon(Icons.refresh_rounded, size: 18),
+                    tooltip: L10n.t('Обновить'),
+                    visualDensity: VisualDensity.compact,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (!configured)
+              Text(
+                L10n.t(
+                  'Relay не настроен. Укажите адрес, ID устройства и токен.',
+                ),
+                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+              )
+            else ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      server!.relayBase,
+                      style: TextStyle(
+                        fontFamily: 'JetBrainsMono',
+                        fontSize: 11.5,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    server.hasRelayE2e ? L10n.t('E2E включено') : 'TLS',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                status == null
+                    ? L10n.t('Нет данных от relay.')
+                    : online
+                    ? L10n.tf(
+                        'Агент подключён · потоков: {count} · relay {version}',
+                        {
+                          'count': status.streams,
+                          'version': status.version.isEmpty
+                              ? '?'
+                              : status.version,
+                        },
+                      )
+                    : L10n.tf('Агент не подключён · relay {version}', {
+                        'version': status.version.isEmpty
+                            ? '?'
+                            : status.version,
+                      }),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: status == null ? scheme.onSurfaceVariant : statusColor,
+                ),
+              ),
+              if (error != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    error,
+                    style: TextStyle(fontSize: 12, color: scheme.error),
+                  ),
+                ),
+            ],
+          ],
         ),
       ),
     );
