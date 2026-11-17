@@ -3,6 +3,7 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -28,6 +29,10 @@ import (
 )
 
 const maxStreams = 64
+
+// agentMaxBody bounds the decrypted E2E request body that the agent buffers
+// before it answers. It matches the relay's default max_body_bytes.
+const agentMaxBody = 16 << 20
 
 var errShutdownBlocked = errors.New("shutdown is disabled")
 
@@ -285,20 +290,19 @@ func (a *Agent) handleE2E(stream *tunnel.Stream) int {
 		return 0
 	}
 	// The relay needs an outer 200 before it starts streaming opaque frames.
-	if err := stream.SendResponse(http.StatusOK, map[string][]string{
-		"Content-Type": {"application/octet-stream"},
-	}); err != nil {
-		return 0
-	}
+	// It is sent after the request body is read so a large upload never races
+	// with an early response.
 	reader := stream.Reader()
 
 	hello := make([]byte, e2e.HelloSize)
 	if _, err := io.ReadFull(reader, hello); err != nil {
+		_ = sendE2EOuter(stream)
 		stream.Reset("e2e hello failed")
 		return 0
 	}
 	session, err := e2e.NewAgentSession(a.identity, hello)
 	if err != nil {
+		_ = sendE2EOuter(stream)
 		stream.Reset("e2e handshake failed")
 		return 0
 	}
@@ -308,11 +312,13 @@ func (a *Agent) handleE2E(stream *tunnel.Stream) int {
 
 	headerFrame, err := e2e.ReadFrame(reader, session)
 	if err != nil {
+		_ = sendE2EOuter(stream)
 		stream.Reset("e2e header failed")
 		return 0
 	}
 	var req protocol.OpenRequest
 	if err := json.Unmarshal(headerFrame, &req); err != nil {
+		_ = sendE2EOuter(stream)
 		stream.Reset("e2e header failed")
 		return 0
 	}
@@ -320,12 +326,35 @@ func (a *Agent) handleE2E(stream *tunnel.Stream) int {
 
 	target, err := a.target(req)
 	if err != nil {
+		_ = sendE2EOuter(stream)
 		if errors.Is(err, errShutdownBlocked) {
 			writeE2EError(stream, session, http.StatusForbidden, "shutdown is disabled")
 			return http.StatusForbidden
 		}
 		writeE2EError(stream, session, http.StatusBadRequest, err.Error())
 		return http.StatusBadRequest
+	}
+
+	var bodyBytes []byte
+	if req.Body {
+		bodyBytes, err = io.ReadAll(io.LimitReader(
+			e2e.NewBodyReader(reader, session),
+			agentMaxBody+1,
+		))
+		if err != nil {
+			_ = sendE2EOuter(stream)
+			stream.Reset("e2e body failed")
+			return 0
+		}
+		if len(bodyBytes) > agentMaxBody {
+			_ = sendE2EOuter(stream)
+			writeE2EError(stream, session, http.StatusRequestEntityTooLarge, "request body too large")
+			return http.StatusRequestEntityTooLarge
+		}
+	}
+
+	if err := sendE2EOuter(stream); err != nil {
+		return 0
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -340,7 +369,7 @@ func (a *Agent) handleE2E(stream *tunnel.Stream) int {
 
 	var body io.Reader
 	if req.Body {
-		body = e2e.NewBodyReader(reader, session)
+		body = bytes.NewReader(bodyBytes)
 	}
 	httpReq, err := http.NewRequestWithContext(ctx, req.Method, target, body)
 	if err != nil {
@@ -351,7 +380,6 @@ func (a *Agent) handleE2E(stream *tunnel.Stream) int {
 
 	resp, err := a.client.Do(httpReq)
 	if err != nil {
-		println("e2e local request failed:", err.Error())
 		if ctx.Err() != nil {
 			return 0
 		}
@@ -390,6 +418,12 @@ func (a *Agent) handleE2E(stream *tunnel.Stream) int {
 	}
 	_ = stream.CloseWrite()
 	return resp.StatusCode
+}
+
+func sendE2EOuter(stream *tunnel.Stream) error {
+	return stream.SendResponse(http.StatusOK, map[string][]string{
+		"Content-Type": {"application/octet-stream"},
+	})
 }
 
 func writeE2EError(stream *tunnel.Stream, session *e2e.Session, status int, message string) {
