@@ -193,8 +193,8 @@ lm-relay-agent -config ~/.config/lm-computer/relay-agent.json -print-identity
 ```
 
 ```text
-public_key: 0LwFsnYIGv9hgrQqr94F/vT7QaMz904l+gmX2NpjlFA=
-fingerprint: 0A84 4397 A568 20CA F245 7B88 454B A692 8D90 DD67 6AB2 E775 3790 5FB6 39F7 AB20
+public_key: <44 символа base64>
+fingerprint: 0123 4567 89AB CDEF 0123 4567 89AB CDEF 0123 4567 89AB CDEF 0123 4567 89AB CDEF
 ```
 
 **Приложение.** Настройки сервера → блок relay → «Сквозное шифрование (E2E)» →
