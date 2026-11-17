@@ -1,6 +1,6 @@
 # TODO
 
-Текущая версия: **1.8.4**, плагин **0.1.5**.
+Текущая версия: **1.11.1**, плагин **0.1.6**.
 
 P0 и P1 закрыты в исходниках, большинство P2 — тоже. Ниже только открытые
 задачи; выполненное вынесено в конец файла.
@@ -17,16 +17,115 @@ P0 и P1 закрыты в исходниках, большинство P2 — �
       внутри приложения. Полное решение: HTTPS или локальный reverse proxy для
       LM Studio/мостика.
 
-- [ ] **Подписать Windows-установщик.** Android уже подписан release-ключом, а
-      сертификата для Windows нет: `lm-chat-setup-1.8.2.exe` опубликован без
-      Authenticode, поэтому встроенное автообновление его отклоняет и
-      Windows-пользователи ставят вручную. Нужен сертификат (или бесплатный
-      вариант для OSS), затем `LMCHAT_SIGN_CERT` для
-      `build_windows_installer.ps1`.
 
-- [ ] **Обновить плагин на Ubuntu.** Хост `192.168.0.183` был недоступен;
-      после включения: `cd ~/lm-computer && git pull && ./install.sh`, затем
-      проверить `lm-computer.service` и порты `1236`/`1237`.
+### P2 — удалённый доступ через relay (интернет)
+
+Агент на машине с LM Studio открывает исходящее WSS-соединение, relay на VPS
+мультиплексирует в него HTTP-запросы приложения. Входящие порты дома не
+открываются, NAT/CGNAT не мешают. LAN-трафик это не меняет — см. P3.
+
+**Архитектура**
+
+```text
+телефон/ПК                     VPS                         дом с LM Studio
+LM Chat ── HTTPS/SSE ──▶ nginx (TLS) ──▶ relay ◀── WSS ── agent
+                                       :8787              ├─ 1234 LM Studio
+                                                          ├─ 1235 мост
+                                                          └─ 1236 плагин
+```
+
+Маршруты одного публичного origin:
+
+| Путь | Куда |
+|---|---|
+| `/v1/*`, `/api/v1/*` | LM Studio 1234 |
+| `/api/health`, `/api/status`, `/api/logs*`, `/api/audit`, `/api/events`, `/api/approvals*`, `/api/tools`, `/api/config`, `/api/files`, `/api/file`, `/api/auto-accept`, `/api/cancel`, `/api/shutdown` | плагин 1236 |
+| `/health`, `/ps`, `/load`, `/unload`, `/estimate`, `/chat`, `/chat/*` | мост 1235 |
+
+Порт `1237` (MCP) наружу не выносится: LM Studio вызывает плагин локально.
+
+**Протокол**
+
+- Агент → relay: `GET /_tunnel` (Upgrade), `X-Device: <id>`,
+  `Authorization: Bearer <agent-secret>`.
+- Бинарные кадры до 64 КБ: `OPEN {stream, service, method, path, headers}`,
+  `DATA`, `END`, `RST`, `RESPONSE {status, headers}`.
+- Flow control по кредитам: медленный клиент не блокирует остальные потоки.
+- Ping каждые 20 с; reconnect с экспоненциальным backoff и jitter.
+- Нет агента → `503` + `Retry-After`; неверный токен → `401`;
+  неизвестное устройство → `404`.
+- SSE без буферизации, `X-Accel-Buffering: no`.
+
+**Решения**
+
+- Хостинг: свой VPS, TLS терминирует nginx (Caddy — опционально).
+- Relay и агент — Go, один модуль, общий пакет `internal/tunnel`; агент —
+  статический бинарник/`.exe` без Node.
+- E2E опционально, решает клиент: TLS всегда, поверх — X25519 + HKDF +
+  ChaCha20-Poly1305; у агента постоянный Ed25519-ключ, отпечаток закрепляется
+  в профиле. Без тихого отката.
+- Паритет с LAN: пресеты «Приложение» и «Полный доступ»; `shutdown`
+  заблокирован, пока не передан `X-Relay-Confirm: shutdown`.
+
+**Задачи**
+
+- [ ] Протокол мультиплекса: backpressure, half-close, отмена потока,
+      reconnect.
+- [ ] `relay`: HTTP-фронт, WSS-туннель, аутентификация, лимиты, таймауты,
+      healthcheck, метрики без содержимого.
+- [ ] `agent`: конфиг из `~/.config/lm-computer/token.txt`, allowlist,
+      проксирование на 1234/1235/1236, systemd unit, служба Windows.
+- [ ] `deploy/nginx/lm-relay.conf`: `proxy_buffering off`,
+      `proxy_read_timeout 900s`, `proxy_request_buffering off`,
+      `client_max_body_size 16m`, `gzip off`, WS upgrade, access log без query.
+      Certbot для домена/`sslip.io` или `openssl` + IP SAN.
+- [ ] `docker-compose.yml`: relay на `127.0.0.1:8787`, non-root, read-only FS,
+      без shell.
+- [ ] Приложение: режим `relay` в `ServerConfig` (`relayUrl`, `relayDevice`,
+      `relayToken`), автозаполнение `pluginUrl` и `bridgeUrl` тем же origin,
+      заголовок `X-Relay-Token`, `chatViaBridge` по умолчанию.
+- [ ] Настройки: блок «Доступ через интернет», переключатель E2E, поле
+      отпечатка, статус «Relay: онлайн/офлайн».
+- [ ] Пиннинг сертификата для IP-варианта: `SecurityContext` + `IOClient`,
+      проверка IP SAN.
+- [ ] E2E: handshake, AEAD-потоки, защита от replay, запрет отката,
+      отпечаток в диагностике.
+- [ ] Тесты: Go unit/integration с фейковым агентом, Dart-тесты relay-режима,
+      smoke-скрипт через nginx.
+- [ ] Документация: README, `wiki/Bridge.md`, новый `wiki/Remote.md`,
+      `wiki/Security.md`, `wiki/Troubleshooting.md`.
+
+**Критерии готовности**
+
+- Чат, MCP-инструменты, мост (`load`/`unload`/`ps`/resume) и логи плагина
+  работают через relay так же, как в LAN.
+- Пауза модели 10 минут не обрывает SSE.
+- E2E включено: relay не видит пути и тела; чужой ключ устройства
+  отклоняется.
+- Без токена — `401`, чужое устройство — `404`, агент офлайн — `503`.
+- Дома не открыто ни одного входящего порта.
+- Образ relay < 50 МБ, RSS < 60 МБ, логи без тел, токенов и путей с query.
+
+**Безопасность**
+
+- Токен relay в режиме «Полный доступ» эквивалентен shell-доступу: 32+ байта,
+  отдельный от токена плагина, ротация документирована.
+- Allowlist и проверка опасных путей — в агенте, единая точка для обычного и
+  E2E-режима.
+- Rate limit на устройство, лимит тела 16 МБ, лимит параллельных потоков.
+- Relay: non-root, read-only FS, без shell, только 80/443 наружу.
+- При E2E relay видит только device, id потока, размеры и тайминги.
+
+**Оценка:** 10–14 дней с E2E, 6–8 без E2E.
+
+**Открытые вопросы**
+
+- Имя relay: `sslip.io`/DuckDNS, свой домен или IP + пиннинг?
+- E2E по умолчанию: включено для новых relay-профилей или выключено?
+- Открывать ли `/api/auto-accept` в пресете «Полный доступ»?
+- Агент на Windows: `sc create`, NSSM или автозапуск EXE?
+- Свободен ли 443 на VPS или нужен отдельный порт?
+
 
 ### P2 — зависимости и CI
 
@@ -44,16 +143,13 @@ P0 и P1 закрыты в исходниках, большинство P2 — �
       Осталось закрепить старые `ci.yml`/`secret-scan.yml` по commit SHA и
       добавить release-сборку APK с проверкой подписи.
 
-- [ ] **Убрать предупреждение SmartScreen.** Подписать APK и Windows installer
-      постоянным сертификатом (пересекается с задачей о release-подписи).
 
 ### P3 — позже
 
 - [ ] Рассмотреть TLS/локальный reverse proxy для `1235`/`1236`/`1237`:
-      сейчас токены и чат идут по LAN в cleartext.
+      сейчас токены и чат идут по LAN в cleartext. Внешний доступ закрывает
+      задача P2 «Удалённый доступ через relay», но LAN-трафик она не меняет.
 
-- [ ] Проверить интерфейс на реальном Android: узкий экран, крупный системный
-      шрифт, светлая тема, голосовой ввод.
 
 ### Новые возможности
 
@@ -65,101 +161,3 @@ P0 и P1 закрыты в исходниках, большинство P2 — �
 - [ ] Показывать стоимость/энергопотребление ответа, если сервер отдаёт
       метрики.
 
-## Сделано (архив)
-
-### P0 — безопасность
-
-- Обход workspace через dangling symlink: `PathGuard` проверяет `lstat`
-  каждого несуществующего компонента, `fs_append` на Unix использует
-  `O_NOFOLLOW`. Тесты: `test/paths.test.ts`.
-- Сетевой слой приложения: `LmClient` проверяет base/bridge до сокета,
-  `send()`/`_generate()` блокируют небезопасный сервер, импорт истории и
-  профиля вырезает токены и пропускает небезопасные URL. Тесты:
-  `test/security_test.dart`.
-- Bridge URL: `bridgeSecurityError` проверяет мост отдельно,
-  `bridgeUrlForBase()` не строит `http://` для публичного хоста.
-
-### P1 — высокий приоритет
-
-- `shell_run` получает только allowlist окружения (`PATH`, `HOME`, `LANG`,
-  `TERM`, `TMPDIR`, display, системные пути Windows). `LMS_*`, proxy-
-  переменные и `SSH_AUTH_SOCK` не передаются. `src/core/shell.ts`.
-- `PUT /api/config` не может сменить workspace на `/` или symlink вне
-  домашнего каталога/`LM_COMPUTER_ALLOWED_ROOTS`. Проверка выполняется до
-  `mkdir`, ответ — `400`. `src/config.ts`, `src/core/service.ts`,
-  `src/core/http.ts`.
-- Подпись обновлений: release APK без `android/key.properties` не собирается,
-  Android сверяет сертификат APK с установленным, Windows проверяет
-  Authenticode, installer умеет подписываться через `signtool`.
-- Denylist shell ловит `sudo`/`doas`/`pkexec` в любом месте строки, включая
-  `/usr/bin/sudo`, `env sudo` и `bash -c 'sudo …'`; документация прямо
-  называет denylist защитой от случайностей, а не sandbox.
-- Импорт истории больше не доверяет серверам и токенам из файла.
-- Release 1.8.2: keystore создан (RSA 4096, alias `lm-chat`, действителен до
-  2054), APK собран и проверен `apksigner` (SHA-256 сертификата
-  `EE:F4:4E:CB:45:6A:A3:CB:04:99:92:1F:E7:1C:96:9A:5F:75:0B:0B:D9:D0:8C:79:7B:C6:2E:39:4B:99:A1:FD`),
-  релиз `v1.8.2` опубликован с `lm-chat-universal.apk`,
-  `lm-chat-setup-1.8.2.exe` и portable ZIP.
-
-### P2 — средний приоритет
-
-- Python-мостик: лимиты `MAX_EVENTS`, `MAX_JOB_BYTES`, таймаут чтения тела,
-  публичный `/health` без запуска `lms`, ограничение вывода `lms`, корректный
-  разбор IPv6.
-- Автообновление: allowlist имён APK/EXE, только HTTPS `github.com`, лимит
-  400 МБ, проверка `Content-Length`, общий дедлайн, удаление частичного файла.
-- `ComputerService.shutdown()` отменяет подтверждения, ждёт завершения
-  shell-процессов и затем останавливает HTTP; используется в `standalone.ts` и
-  `/api/shutdown`.
-- Zenity: таймер перепроверяет активность приложения, пока запрос в очереди.
-- Systemd: `NoNewPrivileges`, `PrivateTmp`, `ProtectSystem=full`,
-  `ProtectControlGroups`, `ProtectKernelTunables`, `RestrictSUIDSGID`,
-  `RestrictAddressFamilies`, `UMask=0077`. `ProtectKernelModules` и
-  `ProtectClock` убраны: в `systemd --user` они дают
-  `Failed to drop capabilities`.
-- MCP-инструменты в приложении: при включённом переключателе чат идёт через
-  нативный `/api/v1/chat` с `integrations`, инструменты выполняет LM Studio.
-  Без моста и структурированного вывода. Тесты: `test/mcp_chat_test.dart`,
-  страница вики `MCP`.
-- Audit: маскирование bearer-токенов, паролей, API-ключей и URL userinfo;
-  ротация `audit.jsonl` после 5 МБ.
-- CORS выключен по умолчанию; Origin отражается только из
-  `LM_COMPUTER_CORS_ORIGINS`.
-- `fs_list` не следует symlink; `fs_move` обрабатывает `EXDEV`; `fs_search`
-  ограничен 10 000 записей и 5 секундами.
-- Приложение проверяет размер файла до `readAsBytes()` для шрифта, истории и
-  профиля (лимит 32 МБ).
-- `defaultMaxTokens` в профиле нормализуется: `<= 0` → `-1`, положительные
-  значения ограничены 131072.
-- Односоставное имя хоста больше не считается локальным: `http://ubuntu`
-  отклоняется, `http://ubuntu.local` — нет.
-- `vitest` обновлён до 5.1.0, critical `tinypool` закрыт.
-- Добавлены тесты на symlink, `securityError`, импорт серверов, лимиты
-  обновлений, workspace, shell env, audit и CORS.
-
-### P3 — безопасность и CI
-
-- `lib/custom_font.dart`: имена файлов шрифтов проверяются по строгому
-  шаблону, `..`, разделители, не-TTF и symlink отклоняются; путь обязан
-  оставаться внутри `fonts/`. Тест: `test/custom_font_test.dart`.
-- В оба репозитория добавлены CodeQL, OSV-скан зависимостей,
-  dependency review для PR и SBOM:
-  - `lm-chat`: CodeQL (Python), OSV, SPDX SBOM через `anchore/sbom-action`;
-  - `lm-computer`: CodeQL (JavaScript/TypeScript), OSV, CycloneDX SBOM через
-    `npm sbom`.
-- GitHub Actions в новых workflow закреплены по commit SHA (кроме
-  `dependency-review-action` и `sbom-action`, которые используют major-тег).
-
-### Проверки на 2026-11-13
-
-- `flutter analyze` — без замечаний;
-- `flutter test` — **171/171**;
-- плагин: `npm run build`, `npm test` — **43/43**;
-- Python: `pytest tools/test_lms_gpu_bridge.py` — **19/19**;
-- `flutter build apk --debug` — успешно;
-- `flutter build apk --release` — успешно с release-keystore, `apksigner` OK;
-- `flutter build windows --release` + Inno Setup — `lm-chat-setup-1.8.2.exe`;
-- `npm audit`: 2 high (`zod` 3 и `@lmstudio/sdk`), критичных нет.
-
-Пути `src/core/...`, `install.sh`, `start.sh`, `stop.sh` и `prompts/...`
-относятся к отдельному репозиторию `tools/lm-computer-plugin`.
