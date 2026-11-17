@@ -137,6 +137,7 @@ class AppProfile {
         server.apiKey = '';
         server.bridgeToken = '';
         server.pluginToken = '';
+        server.relayToken = '';
         if (server.generationSecurityError != null) continue;
         servers.add(server);
       }

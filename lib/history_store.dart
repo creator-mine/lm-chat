@@ -119,7 +119,8 @@ class HistoryStore {
             (server) =>
                 server.apiKey.isNotEmpty ||
                 server.bridgeToken.isNotEmpty ||
-                server.pluginToken.isNotEmpty,
+                server.pluginToken.isNotEmpty ||
+                server.relayToken.isNotEmpty,
           )) {
         _warnedNoKeystore = true;
         onStatus?.call(
@@ -156,15 +157,18 @@ class HistoryStore {
         server.apiKey = stored.apiKey;
         server.bridgeToken = stored.bridgeToken;
         server.pluginToken = stored.pluginToken;
+        server.relayToken = stored.relayToken;
       } else if (server.apiKey.isNotEmpty ||
           server.bridgeToken.isNotEmpty ||
-          server.pluginToken.isNotEmpty) {
+          server.pluginToken.isNotEmpty ||
+          server.relayToken.isNotEmpty) {
         await _secretStore.write(
           server.id,
           ServerSecrets(
             apiKey: server.apiKey,
             bridgeToken: server.bridgeToken,
             pluginToken: server.pluginToken,
+            relayToken: server.relayToken,
           ),
         );
         migrated = true;
@@ -184,6 +188,7 @@ class HistoryStore {
             apiKey: server.apiKey,
             bridgeToken: server.bridgeToken,
             pluginToken: server.pluginToken,
+            relayToken: server.relayToken,
           ),
         );
       }
@@ -208,6 +213,8 @@ class HistoryStore {
       if (bridgeToken is String && bridgeToken.isNotEmpty) return true;
       final pluginToken = value['pluginToken'];
       if (pluginToken is String && pluginToken.isNotEmpty) return true;
+      final relayToken = value['relayToken'];
+      if (relayToken is String && relayToken.isNotEmpty) return true;
       for (final item in value.values) {
         if (_containsSecrets(item)) return true;
       }
@@ -223,7 +230,12 @@ class HistoryStore {
   /// a key split between chunks is still found.
   Future<bool> _fileContainsSecrets(File file) async {
     if (!await file.exists()) return false;
-    const markers = ['"apiKey"', '"bridgeToken"', '"pluginToken"'];
+    const markers = [
+      '"apiKey"',
+      '"bridgeToken"',
+      '"pluginToken"',
+      '"relayToken"',
+    ];
     final reader = await file.open();
     try {
       const chunkSize = 64 * 1024;

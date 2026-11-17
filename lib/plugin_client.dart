@@ -28,6 +28,7 @@ class PluginClient {
     final token = server.pluginToken.trim();
     return {
       'Content-Type': 'application/json',
+      ...server.relayHeaders,
       if (token.isNotEmpty) 'Authorization': 'Bearer $token',
     };
   }

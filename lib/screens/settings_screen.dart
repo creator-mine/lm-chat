@@ -1124,6 +1124,10 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
   late bool _mcpEnabled;
   late final TextEditingController _mcpIntegration;
   late final TextEditingController _pluginToken;
+  late final TextEditingController _relayUrl;
+  late final TextEditingController _relayDevice;
+  late final TextEditingController _relayToken;
+  late bool _relayEnabled;
 
   /// Bridge address stored with the server. When the bridge is enabled from
   /// this dialog, it is derived from the server address; for existing servers
@@ -1157,6 +1161,12 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
     _pluginToken = TextEditingController(
       text: widget.server?.pluginToken ?? '',
     );
+    _relayEnabled = widget.server?.hasRelay ?? false;
+    _relayUrl = TextEditingController(text: widget.server?.relayUrl ?? '');
+    _relayDevice = TextEditingController(
+      text: widget.server?.relayDevice ?? '',
+    );
+    _relayToken = TextEditingController(text: widget.server?.relayToken ?? '');
   }
 
   @override
@@ -1166,6 +1176,9 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
     _key.dispose();
     _mcpIntegration.dispose();
     _pluginToken.dispose();
+    _relayUrl.dispose();
+    _relayDevice.dispose();
+    _relayToken.dispose();
     super.dispose();
   }
 
@@ -1176,9 +1189,22 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
     return Uri.tryParse(value)?.host ?? '';
   }
 
+  /// Public device base derived from the relay fields.
+  String get _relayBase {
+    var value = _relayUrl.text.trim();
+    if (value.isEmpty) return '';
+    if (!value.contains('://')) value = 'https://$value';
+    while (value.endsWith('/')) {
+      value = value.substring(0, value.length - 1);
+    }
+    final device = _relayDevice.text.trim();
+    return device.isEmpty ? value : '$value/d/${Uri.encodeComponent(device)}';
+  }
+
   /// Keeps a custom bridge port of an existing server, but follows the server
   /// address when its host changes. New bridges always use port 1235.
   String get _effectiveBridgeUrl {
+    if (_relayEnabled) return _relayBase;
     if (!_bridgeEnabled) return '';
     if (_bridgeAddress.isNotEmpty) {
       var stored = _bridgeAddress;
@@ -1191,7 +1217,8 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
     return ServerConfig.bridgeUrlForBase(_url.text);
   }
 
-  String get _derivedPluginUrl => ServerConfig.pluginUrlForBase(_url.text);
+  String get _derivedPluginUrl =>
+      _relayEnabled ? _relayBase : ServerConfig.pluginUrlForBase(_url.text);
 
   void _toggleBridge() {
     if (_bridgeEnabled) {
@@ -1219,13 +1246,16 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
     name: _name.text.trim().isEmpty ? 'LM Studio' : _name.text.trim(),
     baseUrl: _url.text.trim(),
     apiKey: _key.text.trim(),
-    bridgeUrl: _effectiveBridgeUrl,
+    bridgeUrl: _relayEnabled ? '' : _effectiveBridgeUrl,
     chatViaBridge: _chatViaBridge,
     mcpEnabled: _mcpEnabled,
     mcpIntegrationId: _mcpIntegration.text.trim().isEmpty
         ? ServerConfig.defaultMcpIntegrationId
         : _mcpIntegration.text.trim(),
     pluginToken: _pluginToken.text.trim(),
+    relayUrl: _relayEnabled ? _relayUrl.text.trim() : '',
+    relayDevice: _relayEnabled ? _relayDevice.text.trim() : '',
+    relayToken: _relayEnabled ? _relayToken.text.trim() : '',
   );
 
   void _save() {
@@ -1246,7 +1276,21 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
       });
       return;
     }
-    if (_bridgeEnabled && server.bridgeUrl.isEmpty) {
+    if (server.hasRelay && server.relayDevice.trim().isEmpty) {
+      setState(() {
+        _testOk = false;
+        _testMessage = L10n.t('Укажите ID устройства relay');
+      });
+      return;
+    }
+    if (server.hasRelay && server.effectiveRelayToken.isEmpty) {
+      setState(() {
+        _testOk = false;
+        _testMessage = L10n.t('Укажите токен relay или токен плагина');
+      });
+      return;
+    }
+    if (_bridgeEnabled && !server.hasRelay && server.bridgeUrl.isEmpty) {
       setState(() {
         _testOk = false;
         _testMessage = L10n.t('Сначала укажите адрес сервера');
@@ -1259,7 +1303,7 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
   Future<void> _test() async {
     final state = context.read<AppState>();
     final server = _build();
-    if (server.baseUrl.isEmpty) {
+    if (!server.hasRelay && server.baseUrl.isEmpty) {
       setState(() {
         _testOk = false;
         _testMessage = 'Укажите адрес сервера';
@@ -1400,6 +1444,57 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
                       ),
               ),
             ),
+            const SizedBox(height: 16),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(L10n.t('Доступ через интернет (relay)')),
+              subtitle: Text(
+                L10n.t(
+                  'lm-relay на VPS. Локальный адрес выше останется для LAN.',
+                ),
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+              value: _relayEnabled,
+              onChanged: (value) => setState(() => _relayEnabled = value),
+            ),
+            if (_relayEnabled) ...[
+              TextField(
+                controller: _relayUrl,
+                keyboardType: TextInputType.url,
+                autocorrect: false,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  labelText: L10n.t('Адрес relay'),
+                  hintText: 'https://lm.example.com',
+                  helperText: L10n.t(
+                    'HTTPS. Для IP нужен самоподписанный сертификат.',
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _relayDevice,
+                autocorrect: false,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  labelText: L10n.t('ID устройства'),
+                  hintText: 'home-pc',
+                  helperText: L10n.t('Ключ из devices в relay.json.'),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _relayToken,
+                obscureText: true,
+                decoration: InputDecoration(
+                  labelText: L10n.t('Токен relay'),
+                  helperText: L10n.t('Пусто — использовать токен плагина.'),
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             Align(
               alignment: Alignment.centerLeft,

@@ -1934,6 +1934,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
           server.apiKey = '';
           server.bridgeToken = '';
           server.pluginToken = '';
+          server.relayToken = '';
           if (server.generationSecurityError != null) {
             AppLog.instance.warning(
               'Пропущен небезопасный сервер из импорта',
@@ -2018,7 +2019,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         final server = incoming.clone()
           ..apiKey = ''
           ..bridgeToken = ''
-          ..pluginToken = '';
+          ..pluginToken = ''
+          ..relayToken = '';
         if (server.generationSecurityError != null) continue;
         ServerConfig? existing;
         for (final current in data.servers) {
@@ -2047,6 +2049,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
                 chatViaBridge: server.chatViaBridge,
                 pluginUrl: server.pluginUrl,
                 pluginToken: server.pluginToken,
+                relayUrl: server.relayUrl,
+                relayDevice: server.relayDevice,
+                relayToken: server.relayToken,
               )
             : server;
         newServers.add(target);
@@ -2575,6 +2580,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
                     bridgeUrl: incoming.bridgeUrl,
                     chatViaBridge: incoming.chatViaBridge,
                     pluginUrl: incoming.pluginUrl,
+                    relayUrl: incoming.relayUrl,
+                    relayDevice: incoming.relayDevice,
                   )
                 : incoming.clone();
             data.servers.add(target);
@@ -2625,6 +2632,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
               existing.pluginToken = '';
               secretsChanged = true;
             }
+            changed = true;
+          }
+          if (existing.relayUrl != incoming.relayUrl ||
+              existing.relayDevice != incoming.relayDevice) {
+            existing.relayUrl = incoming.relayUrl;
+            existing.relayDevice = incoming.relayDevice;
             changed = true;
           }
           if (changed) {

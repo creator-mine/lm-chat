@@ -61,6 +61,8 @@ void main() {
     expect(find.text('Токен моста (BRIDGE_TOKEN)'), findsNothing);
     expect(find.text('Токен плагина'), findsOneWidget);
 
+    await tester.ensureVisible(find.text('Включить мост'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Включить мост'));
     await tester.pumpAndSettle();
 

@@ -6,14 +6,19 @@ class ServerSecrets {
     this.apiKey = '',
     this.bridgeToken = '',
     this.pluginToken = '',
+    this.relayToken = '',
   });
 
   final String apiKey;
   final String bridgeToken;
   final String pluginToken;
+  final String relayToken;
 
   bool get isEmpty =>
-      apiKey.isEmpty && bridgeToken.isEmpty && pluginToken.isEmpty;
+      apiKey.isEmpty &&
+      bridgeToken.isEmpty &&
+      pluginToken.isEmpty &&
+      relayToken.isEmpty;
 }
 
 /// Storage for per-server secrets. The real implementation uses the platform
@@ -38,6 +43,7 @@ class SecureSecretStore implements SecretStore {
   static String _apiKey(String id) => 'lm_chat.$id.apiKey';
   static String _bridgeToken(String id) => 'lm_chat.$id.bridgeToken';
   static String _pluginToken(String id) => 'lm_chat.$id.pluginToken';
+  static String _relayToken(String id) => 'lm_chat.$id.relayToken';
 
   @override
   Future<bool> isAvailable() async {
@@ -61,10 +67,12 @@ class SecureSecretStore implements SecretStore {
     final apiKey = await storage.read(key: _apiKey(serverId)) ?? '';
     final bridgeToken = await storage.read(key: _bridgeToken(serverId)) ?? '';
     final pluginToken = await storage.read(key: _pluginToken(serverId)) ?? '';
+    final relayToken = await storage.read(key: _relayToken(serverId)) ?? '';
     return ServerSecrets(
       apiKey: apiKey,
       bridgeToken: bridgeToken,
       pluginToken: pluginToken,
+      relayToken: relayToken,
     );
   }
 
@@ -91,6 +99,14 @@ class SecureSecretStore implements SecretStore {
         value: secrets.pluginToken,
       );
     }
+    if (secrets.relayToken.isEmpty) {
+      await storage.delete(key: _relayToken(serverId));
+    } else {
+      await storage.write(
+        key: _relayToken(serverId),
+        value: secrets.relayToken,
+      );
+    }
   }
 
   @override
@@ -98,6 +114,7 @@ class SecureSecretStore implements SecretStore {
     await storage.delete(key: _apiKey(serverId));
     await storage.delete(key: _bridgeToken(serverId));
     await storage.delete(key: _pluginToken(serverId));
+    await storage.delete(key: _relayToken(serverId));
   }
 }
 

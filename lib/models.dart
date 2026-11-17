@@ -356,6 +356,9 @@ class ServerConfig {
     this.mcpIntegrationId = defaultMcpIntegrationId,
     this.pluginUrl = '',
     this.pluginToken = '',
+    this.relayUrl = '',
+    this.relayDevice = '',
+    this.relayToken = '',
   });
 
   final String id;
@@ -372,6 +375,16 @@ class ServerConfig {
   /// the bridge token and is only used for diagnostics (status and logs).
   String pluginUrl;
   String pluginToken;
+
+  /// Public relay origin, e.g. `https://lm.example.com`. When set, the app
+  /// reaches LM Studio, the bridge and the plugin through `/d/<device>/…`
+  /// instead of the LAN addresses.
+  String relayUrl;
+  String relayDevice;
+
+  /// Token for the relay itself (`X-Relay-Token`). Falls back to the plugin
+  /// token when empty, so one secret can protect both.
+  String relayToken;
 
   /// Send chat requests through the bridge so the answer is generated on the
   /// server and survives the app being backgrounded or killed.
@@ -396,8 +409,45 @@ class ServerConfig {
 
   bool get hasMcp => mcpEnabled && mcpIntegrationId.trim().isNotEmpty;
 
+  /// Relay origin without a trailing slash.
+  String get normalizedRelay {
+    var value = relayUrl.trim();
+    if (value.isEmpty) return '';
+    if (!value.contains('://')) value = 'https://$value';
+    while (value.endsWith('/')) {
+      value = value.substring(0, value.length - 1);
+    }
+    return value;
+  }
+
+  bool get hasRelay => normalizedRelay.isNotEmpty;
+
+  /// Public base for this device: `https://relay/d/<device>`.
+  String get relayBase {
+    final base = normalizedRelay;
+    if (base.isEmpty) return '';
+    final device = relayDevice.trim();
+    return device.isEmpty ? base : '$base/d/${Uri.encodeComponent(device)}';
+  }
+
+  /// Relay token, falling back to the plugin token so one secret can protect
+  /// the plugin, the bridge and the relay.
+  String get effectiveRelayToken {
+    final relay = relayToken.trim();
+    return relay.isNotEmpty ? relay : pluginToken.trim();
+  }
+
+  /// Headers that authenticate the request at the relay.
+  Map<String, String> get relayHeaders {
+    if (!hasRelay) return const {};
+    final token = effectiveRelayToken;
+    if (token.isEmpty) return const {};
+    return {'X-Relay-Token': token};
+  }
+
   /// Accepts `192.168.1.5:1234`, `http://host:1234/` or `http://host:1234/v1`.
   String get normalizedBase {
+    if (hasRelay) return relayBase;
     var value = baseUrl.trim();
     if (value.isEmpty) return value;
     if (!value.contains('://')) value = 'http://$value';
@@ -412,6 +462,7 @@ class ServerConfig {
 
   /// Accepts `192.168.1.5:1235` or `http://host:1235/`.
   String get normalizedBridge {
+    if (hasRelay) return relayBase;
     var value = bridgeUrl.trim();
     if (value.isEmpty) return value;
     if (!value.contains('://')) value = 'http://$value';
@@ -457,6 +508,7 @@ class ServerConfig {
 
   /// Configured plugin address, or the one derived from [baseUrl].
   String get effectivePluginUrl {
+    if (hasRelay) return relayBase;
     final configured = normalizedPlugin;
     return configured.isNotEmpty ? configured : pluginUrlForBase(baseUrl);
   }
@@ -596,6 +648,9 @@ class ServerConfig {
       'mcpIntegrationId': mcpIntegrationId,
     if (pluginUrl.trim().isNotEmpty) 'pluginUrl': pluginUrl.trim(),
     if (includeSecrets && pluginToken.isNotEmpty) 'pluginToken': pluginToken,
+    if (relayUrl.trim().isNotEmpty) 'relayUrl': relayUrl.trim(),
+    if (relayDevice.trim().isNotEmpty) 'relayDevice': relayDevice.trim(),
+    if (includeSecrets && relayToken.isNotEmpty) 'relayToken': relayToken,
   };
 
   factory ServerConfig.fromJson(Map<String, dynamic> json) => ServerConfig(
@@ -611,6 +666,9 @@ class ServerConfig {
         json['mcpIntegrationId'] as String? ?? defaultMcpIntegrationId,
     pluginUrl: json['pluginUrl'] as String? ?? '',
     pluginToken: json['pluginToken'] as String? ?? '',
+    relayUrl: json['relayUrl'] as String? ?? '',
+    relayDevice: json['relayDevice'] as String? ?? '',
+    relayToken: json['relayToken'] as String? ?? '',
   );
 
   ServerConfig clone() => ServerConfig(
@@ -625,6 +683,9 @@ class ServerConfig {
     mcpIntegrationId: mcpIntegrationId,
     pluginUrl: pluginUrl,
     pluginToken: pluginToken,
+    relayUrl: relayUrl,
+    relayDevice: relayDevice,
+    relayToken: relayToken,
   );
 }
 

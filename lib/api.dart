@@ -179,6 +179,7 @@ class LmClient {
 
   Map<String, String> _headers(ServerConfig server) {
     final headers = <String, String>{'Content-Type': 'application/json'};
+    headers.addAll(server.relayHeaders);
     if (server.apiKey.trim().isNotEmpty) {
       headers['Authorization'] = 'Bearer ${server.apiKey.trim()}';
     }
@@ -189,6 +190,7 @@ class LmClient {
 
   Map<String, String> _bridgeHeaders(ServerConfig server) {
     final headers = <String, String>{'Content-Type': 'application/json'};
+    headers.addAll(server.relayHeaders);
     final token = server.effectiveBridgeToken;
     if (token.isNotEmpty) {
       headers['Authorization'] = 'Bearer $token';
@@ -206,7 +208,7 @@ class LmClient {
   Future<BridgeHealth> bridgeHealth(ServerConfig server) async {
     _ensureBridgeSafe(server);
     final response = await _http
-        .get(server.bridgeUri('health'))
+        .get(server.bridgeUri('health'), headers: _bridgeHeaders(server))
         .timeout(const Duration(seconds: 10));
     final decoded = _decodeBridge(response.body);
     if (response.statusCode == 200 && decoded['ok'] == true) {

@@ -192,6 +192,20 @@ class L10n {
         'Set the server address first.',
     'Мост использует токен плагина выше.':
         'The bridge uses the plugin token above.',
+    'Доступ через интернет (relay)': 'Internet access (relay)',
+    'lm-relay на VPS. Локальный адрес выше останется для LAN.':
+        'lm-relay on a VPS. The local address above stays for LAN.',
+    'Адрес relay': 'Relay address',
+    'HTTPS. Для IP нужен самоподписанный сертификат.':
+        'HTTPS. An IP-only setup needs a self-signed certificate.',
+    'ID устройства': 'Device ID',
+    'Ключ из devices в relay.json.': 'The key from devices in relay.json.',
+    'Токен relay': 'Relay token',
+    'Пусто — использовать токен плагина.':
+        'Leave empty to use the plugin token.',
+    'Укажите ID устройства relay': 'Set the relay device ID',
+    'Укажите токен relay или токен плагина':
+        'Set the relay token or the plugin token',
     'Адрес плагина': 'Plugin address',
     'Пусто — использовать адрес LM Studio с портом 1236.':
         'Leave empty to use the LM Studio host with port 1236.',
