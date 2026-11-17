@@ -1,0 +1,11 @@
+{
+  "relay_url": "wss://lm.example.com/_tunnel",
+  "device_id": "home-pc",
+  "agent_secret": "CHANGE_ME_AGENT_SECRET_32_BYTES_MINIMUM",
+  "services": {
+    "lmstudio": "http://127.0.0.1:1234",
+    "bridge": "http://127.0.0.1:1235",
+    "plugin": "http://127.0.0.1:1236"
+  },
+  "allow_shutdown": false
+}

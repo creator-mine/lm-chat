@@ -1,0 +1,20 @@
+[Unit]
+Description=LM Chat relay agent
+Documentation=https://github.com/Spe4naz/lm-chat
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/lm-relay-agent -config %h/.config/lm-computer/relay-agent.json
+Restart=always
+RestartSec=5
+# The agent only makes outbound connections; it needs no capabilities.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.config/lm-computer
+
+[Install]
+WantedBy=default.target

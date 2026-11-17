@@ -1,0 +1,7 @@
+# Build output and local secrets
+/bin/
+/relay
+/agent
+*.exe
+/relay.json
+/agent.json

@@ -1,0 +1,15 @@
+{
+  "listen": "127.0.0.1:8787",
+  "max_body_bytes": 16777216,
+  "response_timeout": "5m",
+  "max_streams": 64,
+  "rate_per_second": 20,
+  "rate_burst": 40,
+  "devices": {
+    "home-pc": {
+      "agent_secret": "CHANGE_ME_AGENT_SECRET_32_BYTES_MINIMUM",
+      "access_token": "CHANGE_ME_ACCESS_TOKEN_32_BYTES_MINIMUM",
+      "services": ["lmstudio", "bridge", "plugin"]
+    }
+  }
+}

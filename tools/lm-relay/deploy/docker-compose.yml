@@ -1,0 +1,18 @@
+services:
+  relay:
+    build: .
+    restart: unless-stopped
+    command: ["-config", "/etc/lm-relay/relay.json"]
+    ports:
+      # Only nginx reaches the relay; do not publish this on the internet.
+      - "127.0.0.1:8787:8787"
+    volumes:
+      - ./relay.json:/etc/lm-relay/relay.json:ro
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # The mounted file keeps its host permissions. Either run the container as
+    # the file owner or chmod 0640 and share the group.
+    user: "${RELAY_UID:-1000}:${RELAY_GID:-1000}"
