@@ -21,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Spe4naz/lm-chat/tools/lm-relay/internal/e2e"
 	"github.com/Spe4naz/lm-chat/tools/lm-relay/internal/protocol"
 	"github.com/Spe4naz/lm-chat/tools/lm-relay/internal/tunnel"
 	"github.com/coder/websocket"
@@ -49,6 +50,7 @@ type Agent struct {
 	client   *http.Client
 	wsClient *http.Client
 	slots    chan struct{}
+	identity *e2e.Identity
 }
 
 // New validates the configuration and builds the HTTP clients.
@@ -60,6 +62,21 @@ func New(cfg Config, logger *slog.Logger) (*Agent, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
+	if cfg.IdentityFile == "" {
+		path, err := e2e.DefaultIdentityPath()
+		if err != nil {
+			return nil, err
+		}
+		cfg.IdentityFile = path
+	}
+	identity, err := e2e.LoadOrCreateIdentity(cfg.IdentityFile)
+	if err != nil {
+		return nil, err
+	}
+	logger.Info("e2e identity",
+		"public_key", identity.PublicKey(),
+		"fingerprint", identity.Fingerprint(),
+	)
 
 	var tlsConfig *tls.Config
 	if cfg.CAFile != "" {
@@ -80,7 +97,24 @@ func New(cfg Config, logger *slog.Logger) (*Agent, error) {
 		client:   &http.Client{Transport: newTransport(tlsConfig)},
 		wsClient: &http.Client{Transport: newTransport(tlsConfig)},
 		slots:    make(chan struct{}, maxStreams),
+		identity: identity,
 	}, nil
+}
+
+// PublicKey is the base64 X25519 key the app pins for E2E.
+func (a *Agent) PublicKey() string {
+	if a.identity == nil {
+		return ""
+	}
+	return a.identity.PublicKey()
+}
+
+// Fingerprint is the grouped SHA-256 of the identity key.
+func (a *Agent) Fingerprint() string {
+	if a.identity == nil {
+		return ""
+	}
+	return a.identity.Fingerprint()
 }
 
 func newTransport(tlsConfig *tls.Config) *http.Transport {
@@ -169,6 +203,11 @@ func (a *Agent) handleOpen(stream *tunnel.Stream, req protocol.OpenRequest) {
 		)
 	}()
 
+	if req.Service == protocol.ServiceE2E {
+		status = a.handleE2E(stream)
+		return
+	}
+
 	target, err := a.target(req)
 	if err != nil {
 		if errors.Is(err, errShutdownBlocked) {
@@ -201,15 +240,7 @@ func (a *Agent) handleOpen(stream *tunnel.Stream, req protocol.OpenRequest) {
 		writeAgentError(stream, status, "invalid request")
 		return
 	}
-	for key, values := range req.Headers {
-		canonical := textproto.CanonicalMIMEHeaderKey(key)
-		if hopHeaders[canonical] || canonical == "Host" || canonical == "Content-Length" || canonical == "X-Relay-Confirm" {
-			continue
-		}
-		for _, value := range values {
-			httpReq.Header.Add(canonical, value)
-		}
-	}
+	addForwardHeaders(httpReq, req.Headers)
 
 	resp, err := a.client.Do(httpReq)
 	if err != nil {
@@ -244,6 +275,156 @@ func (a *Agent) handleOpen(stream *tunnel.Stream, req protocol.OpenRequest) {
 		}
 	}
 	_ = stream.CloseWrite()
+}
+
+// handleE2E decrypts one request, proxies it and encrypts the response.
+// The relay only sees opaque frames on the `e2e` service.
+func (a *Agent) handleE2E(stream *tunnel.Stream) int {
+	if a.identity == nil {
+		stream.Reset("e2e is not configured")
+		return 0
+	}
+	// The relay needs an outer 200 before it starts streaming opaque frames.
+	if err := stream.SendResponse(http.StatusOK, map[string][]string{
+		"Content-Type": {"application/octet-stream"},
+	}); err != nil {
+		return 0
+	}
+	reader := stream.Reader()
+
+	hello := make([]byte, e2e.HelloSize)
+	if _, err := io.ReadFull(reader, hello); err != nil {
+		stream.Reset("e2e hello failed")
+		return 0
+	}
+	session, err := e2e.NewAgentSession(a.identity, hello)
+	if err != nil {
+		stream.Reset("e2e handshake failed")
+		return 0
+	}
+	if err := e2e.WriteFrame(stream, session, []byte(`{"ok":true}`)); err != nil {
+		return 0
+	}
+
+	headerFrame, err := e2e.ReadFrame(reader, session)
+	if err != nil {
+		stream.Reset("e2e header failed")
+		return 0
+	}
+	var req protocol.OpenRequest
+	if err := json.Unmarshal(headerFrame, &req); err != nil {
+		stream.Reset("e2e header failed")
+		return 0
+	}
+	req.Headers = canonicalHeaders(req.Headers)
+
+	target, err := a.target(req)
+	if err != nil {
+		if errors.Is(err, errShutdownBlocked) {
+			writeE2EError(stream, session, http.StatusForbidden, "shutdown is disabled")
+			return http.StatusForbidden
+		}
+		writeE2EError(stream, session, http.StatusBadRequest, err.Error())
+		return http.StatusBadRequest
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		select {
+		case <-stream.ResetChan():
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+
+	var body io.Reader
+	if req.Body {
+		body = e2e.NewBodyReader(reader, session)
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, req.Method, target, body)
+	if err != nil {
+		writeE2EError(stream, session, http.StatusBadRequest, "invalid request")
+		return http.StatusBadRequest
+	}
+	addForwardHeaders(httpReq, req.Headers)
+
+	resp, err := a.client.Do(httpReq)
+	if err != nil {
+		if ctx.Err() != nil {
+			return 0
+		}
+		writeE2EError(stream, session, http.StatusBadGateway, "local service unavailable")
+		return http.StatusBadGateway
+	}
+	defer resp.Body.Close()
+
+	header, err := json.Marshal(protocol.Response{
+		Status:  resp.StatusCode,
+		Headers: responseHeaders(resp.Header),
+	})
+	if err != nil {
+		stream.Reset("e2e response failed")
+		return 0
+	}
+	if err := e2e.WriteFrame(stream, session, header); err != nil {
+		return 0
+	}
+
+	buf := make([]byte, protocol.MaxDataPayload)
+	for {
+		n, readErr := resp.Body.Read(buf)
+		if n > 0 {
+			if err := e2e.WriteFrame(stream, session, buf[:n]); err != nil {
+				return resp.StatusCode
+			}
+		}
+		if readErr == io.EOF {
+			break
+		}
+		if readErr != nil {
+			stream.Reset("local read failed")
+			return resp.StatusCode
+		}
+	}
+	_ = stream.CloseWrite()
+	return resp.StatusCode
+}
+
+func writeE2EError(stream *tunnel.Stream, session *e2e.Session, status int, message string) {
+	header, _ := json.Marshal(protocol.Response{
+		Status:  status,
+		Headers: map[string][]string{"Content-Type": {"application/json; charset=utf-8"}},
+	})
+	if e2e.WriteFrame(stream, session, header) != nil {
+		return
+	}
+	body, _ := json.Marshal(map[string]string{"error": message})
+	_ = e2e.WriteFrame(stream, session, body)
+	_ = stream.CloseWrite()
+}
+
+func canonicalHeaders(headers map[string][]string) map[string][]string {
+	if headers == nil {
+		return nil
+	}
+	out := make(map[string][]string, len(headers))
+	for key, values := range headers {
+		out[textproto.CanonicalMIMEHeaderKey(key)] = values
+	}
+	return out
+}
+
+func addForwardHeaders(dst *http.Request, headers map[string][]string) {
+	for key, values := range headers {
+		canonical := textproto.CanonicalMIMEHeaderKey(key)
+		if hopHeaders[canonical] || canonical == "Host" || canonical == "Content-Length" || canonical == "X-Relay-Confirm" {
+			continue
+		}
+		for _, value := range values {
+			dst.Header.Add(canonical, value)
+		}
+	}
 }
 
 func (a *Agent) target(req protocol.OpenRequest) (string, error) {

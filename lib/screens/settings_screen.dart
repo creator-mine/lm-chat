@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../api.dart';
 import '../app_state.dart';
 import '../app_version.dart';
+import '../e2e.dart';
 import '../format_utils.dart';
 import '../l10n_text.dart';
 import '../models.dart';
@@ -1127,7 +1128,9 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
   late final TextEditingController _relayUrl;
   late final TextEditingController _relayDevice;
   late final TextEditingController _relayToken;
+  late final TextEditingController _relayPublicKey;
   late bool _relayEnabled;
+  late bool _relayE2e;
 
   /// Bridge address stored with the server. When the bridge is enabled from
   /// this dialog, it is derived from the server address; for existing servers
@@ -1167,6 +1170,10 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
       text: widget.server?.relayDevice ?? '',
     );
     _relayToken = TextEditingController(text: widget.server?.relayToken ?? '');
+    _relayE2e = widget.server?.relayE2e ?? false;
+    _relayPublicKey = TextEditingController(
+      text: widget.server?.relayPublicKey ?? '',
+    );
   }
 
   @override
@@ -1179,6 +1186,7 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
     _relayUrl.dispose();
     _relayDevice.dispose();
     _relayToken.dispose();
+    _relayPublicKey.dispose();
     super.dispose();
   }
 
@@ -1220,6 +1228,19 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
   String get _derivedPluginUrl =>
       _relayEnabled ? _relayBase : ServerConfig.pluginUrlForBase(_url.text);
 
+  String get _relayKeyHint {
+    final value = _relayPublicKey.text.trim();
+    if (value.isEmpty) {
+      return L10n.t('Возьмите из lm-relay-agent -print-identity.');
+    }
+    try {
+      final key = parseE2ePublicKey(value);
+      return L10n.tf('Отпечаток: {fp}', {'fp': e2eFingerprint(key)});
+    } on E2eException catch (error) {
+      return error.message;
+    }
+  }
+
   void _toggleBridge() {
     if (_bridgeEnabled) {
       setState(() {
@@ -1256,6 +1277,10 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
     relayUrl: _relayEnabled ? _relayUrl.text.trim() : '',
     relayDevice: _relayEnabled ? _relayDevice.text.trim() : '',
     relayToken: _relayEnabled ? _relayToken.text.trim() : '',
+    relayE2e: _relayEnabled && _relayE2e,
+    relayPublicKey: _relayEnabled && _relayE2e
+        ? _relayPublicKey.text.trim()
+        : '',
   );
 
   void _save() {
@@ -1289,6 +1314,24 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
         _testMessage = L10n.t('Укажите токен relay или токен плагина');
       });
       return;
+    }
+    if (server.relayE2e) {
+      if (server.relayPublicKey.trim().isEmpty) {
+        setState(() {
+          _testOk = false;
+          _testMessage = L10n.t('Укажите публичный ключ устройства');
+        });
+        return;
+      }
+      try {
+        parseE2ePublicKey(server.relayPublicKey);
+      } on E2eException catch (error) {
+        setState(() {
+          _testOk = false;
+          _testMessage = error.message;
+        });
+        return;
+      }
     }
     if (_bridgeEnabled && !server.hasRelay && server.bridgeUrl.isEmpty) {
       setState(() {
@@ -1494,6 +1537,31 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
                   helperText: L10n.t('Пусто — использовать токен плагина.'),
                 ),
               ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(L10n.t('Сквозное шифрование (E2E)')),
+                subtitle: Text(
+                  L10n.t('Relay не видит пути, заголовки и содержимое.'),
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+                value: _relayE2e,
+                onChanged: (value) => setState(() => _relayE2e = value),
+              ),
+              if (_relayE2e)
+                TextField(
+                  controller: _relayPublicKey,
+                  autocorrect: false,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    labelText: L10n.t('Публичный ключ устройства'),
+                    hintText: 'base64 или hex, 32 байта',
+                    helperText: _relayKeyHint,
+                    helperMaxLines: 3,
+                  ),
+                ),
             ],
             const SizedBox(height: 16),
             Align(

@@ -206,6 +206,15 @@ class L10n {
     'Укажите ID устройства relay': 'Set the relay device ID',
     'Укажите токен relay или токен плагина':
         'Set the relay token or the plugin token',
+    'Сквозное шифрование (E2E)': 'End-to-end encryption (E2E)',
+    'Relay не видит пути, заголовки и содержимое.':
+        'The relay cannot see paths, headers or content.',
+    'Публичный ключ устройства': 'Device public key',
+    'base64 или hex, 32 байта': 'base64 or hex, 32 bytes',
+    'Возьмите из lm-relay-agent -print-identity.':
+        'Copy it from lm-relay-agent -print-identity.',
+    'Отпечаток: {fp}': 'Fingerprint: {fp}',
+    'Укажите публичный ключ устройства': 'Set the device public key',
     'Адрес плагина': 'Plugin address',
     'Пусто — использовать адрес LM Studio с портом 1236.':
         'Leave empty to use the LM Studio host with port 1236.',

@@ -238,6 +238,10 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		resp.Status = http.StatusBadGateway
 	}
 	applyResponseHeaders(w.Header(), resp.Headers)
+	if service == protocol.ServiceE2E {
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("X-Accel-Buffering", "no")
+	}
 	status = resp.Status
 	w.WriteHeader(status)
 	flush(w)

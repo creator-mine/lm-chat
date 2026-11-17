@@ -20,7 +20,12 @@ const (
 	ServicePlugin   = protocol.ServicePlugin
 )
 
-var knownServices = []string{ServiceLMStudio, ServiceBridge, ServicePlugin}
+var knownServices = []string{
+	ServiceLMStudio,
+	ServiceBridge,
+	ServicePlugin,
+	protocol.ServiceE2E,
+}
 
 // Device is one LM Studio machine allowed to attach to this relay.
 type Device struct {
@@ -34,6 +39,9 @@ type Device struct {
 }
 
 func (d Device) allows(service string) bool {
+	if service == protocol.ServiceE2E {
+		return true
+	}
 	if len(d.Services) == 0 {
 		return true
 	}

@@ -6,16 +6,21 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/Spe4naz/lm-chat/tools/lm-relay/internal/agent"
+	"github.com/Spe4naz/lm-chat/tools/lm-relay/internal/e2e"
+	"github.com/Spe4naz/lm-chat/tools/lm-relay/internal/protocol"
 	"github.com/Spe4naz/lm-chat/tools/lm-relay/internal/relay"
 )
 
@@ -28,6 +33,7 @@ const (
 type stack struct {
 	relay  *httptest.Server
 	client *http.Client
+	agent  *agent.Agent
 	cancel context.CancelFunc
 }
 
@@ -112,6 +118,7 @@ func newStack(t *testing.T) *stack {
 			"bridge":   bridge.URL,
 			"plugin":   plugin.URL,
 		},
+		IdentityFile: filepath.Join(t.TempDir(), "identity.json"),
 	}
 	runner, err := agent.New(agentCfg, logger)
 	if err != nil {
@@ -124,6 +131,7 @@ func newStack(t *testing.T) *stack {
 	s := &stack{
 		relay:  relayServer,
 		client: &http.Client{Timeout: 15 * time.Second},
+		agent:  runner,
 		cancel: cancel,
 	}
 	s.waitOnline(t)
@@ -303,4 +311,156 @@ func TestShutdownNeedsConfirmation(t *testing.T) {
 		t.Fatalf("shutdown with confirmation: %v %d", err, resp.StatusCode)
 	}
 	resp.Body.Close()
+}
+
+// e2eRequest performs one end-to-end encrypted call through the relay. The
+// relay only receives the opaque `_e2e` body.
+func (s *stack) e2eRequest(
+	t *testing.T,
+	method, path string,
+	body []byte,
+	service string,
+	agentKey []byte,
+) (int, []byte, error) {
+	t.Helper()
+
+	session, hello, err := e2e.NewClient(agentKey)
+	if err != nil {
+		return 0, nil, err
+	}
+	var wire bytes.Buffer
+	wire.Write(hello)
+
+	header, err := json.Marshal(protocol.OpenRequest{
+		Service: service,
+		Method:  method,
+		Path:    path,
+		Headers: map[string][]string{"Content-Type": {"application/json"}},
+		Body:    len(body) > 0,
+	})
+	if err != nil {
+		return 0, nil, err
+	}
+	if err := e2e.WriteFrame(&wire, session, header); err != nil {
+		return 0, nil, err
+	}
+	for offset := 0; offset < len(body); offset += protocol.MaxDataPayload {
+		end := offset + protocol.MaxDataPayload
+		if end > len(body) {
+			end = len(body)
+		}
+		if err := e2e.WriteFrame(&wire, session, body[offset:end]); err != nil {
+			return 0, nil, err
+		}
+	}
+
+	req, err := http.NewRequest(
+		http.MethodPost,
+		s.relay.URL+"/d/"+deviceID+"/_e2e",
+		bytes.NewReader(wire.Bytes()),
+	)
+	if err != nil {
+		return 0, nil, err
+	}
+	req.Header.Set("X-Relay-Token", accessToken)
+	req.Header.Set("Content-Type", "application/octet-stream")
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return resp.StatusCode, nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return resp.StatusCode, data, nil
+	}
+
+	reader := bytes.NewReader(data)
+	ack, err := e2e.ReadFrame(reader, session)
+	if err != nil {
+		return resp.StatusCode, nil, fmt.Errorf("e2e ack: %w", err)
+	}
+	if string(ack) != `{"ok":true}` {
+		return resp.StatusCode, nil, fmt.Errorf("unexpected e2e ack %q", ack)
+	}
+
+	headerFrame, err := e2e.ReadFrame(reader, session)
+	if err != nil {
+		return resp.StatusCode, nil, fmt.Errorf("e2e header: %w", err)
+	}
+	var response protocol.Response
+	if err := json.Unmarshal(headerFrame, &response); err != nil {
+		return resp.StatusCode, nil, err
+	}
+
+	var out bytes.Buffer
+	for {
+		frame, err := e2e.ReadFrame(reader, session)
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return response.Status, nil, err
+		}
+		out.Write(frame)
+	}
+	return response.Status, out.Bytes(), nil
+}
+
+func TestEndToEndEncryptionThroughRelay(t *testing.T) {
+	s := newStack(t)
+	key, err := e2e.ParsePublicKey(s.agent.PublicKey())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	status, body, err := s.e2eRequest(t, http.MethodGet, "/api/status", nil, "plugin", key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status != http.StatusOK || !bytes.Contains(body, []byte(`"version":"test"`)) {
+		t.Fatalf("plugin status: %d %s", status, body)
+	}
+
+	payload := bytes.Repeat([]byte("b"), 2<<20)
+	sum := sha256.Sum256(payload)
+	status, body, err = s.e2eRequest(
+		t,
+		http.MethodPost,
+		"/v1/chat/completions",
+		payload,
+		"lmstudio",
+		key,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status != http.StatusOK {
+		t.Fatalf("chat status %d: %s", status, body)
+	}
+	want := fmt.Sprintf(`"len":%d,"sha":%q`, len(payload), hex.EncodeToString(sum[:]))
+	if !bytes.Contains(body, []byte(want)) {
+		t.Fatalf("encrypted body was truncated or changed: %s", body)
+	}
+}
+
+func TestEndToEndWrongKeyIsRejected(t *testing.T) {
+	s := newStack(t)
+	other, err := e2e.LoadOrCreateIdentity(filepath.Join(t.TempDir(), "other.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.e2eRequest(
+		t,
+		http.MethodGet,
+		"/api/status",
+		nil,
+		"plugin",
+		other.Public,
+	); err == nil {
+		t.Fatal("a request encrypted for another key was accepted")
+	}
 }

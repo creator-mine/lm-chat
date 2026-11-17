@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'e2e.dart';
 import 'models.dart';
 
 class PluginException implements Exception {
@@ -21,6 +22,10 @@ class PluginClient {
   PluginClient(this.server);
 
   final ServerConfig server;
+
+  late final http.Client _http = server.hasRelayE2e
+      ? RelayE2eClient(server)
+      : http.Client();
 
   static const Duration _timeout = Duration(seconds: 10);
 
@@ -48,7 +53,7 @@ class PluginClient {
 
   Future<PluginStatus> status() async {
     _ensureConfigured();
-    final response = await http
+    final response = await _http
         .get(server.pluginUri('api/status'), headers: _headers)
         .timeout(_timeout);
     return PluginStatus.fromJson(_decode(response));
@@ -57,7 +62,7 @@ class PluginClient {
   Future<PluginLogPage> logs({int limit = 200}) async {
     _ensureConfigured();
     final safe = limit.clamp(1, 1000);
-    final response = await http
+    final response = await _http
         .get(server.pluginUri('api/logs?limit=$safe'), headers: _headers)
         .timeout(_timeout);
     return PluginLogPage.fromJson(_decode(response));
@@ -65,7 +70,7 @@ class PluginClient {
 
   Future<void> setLogLevel(String level) async {
     _ensureConfigured();
-    final response = await http
+    final response = await _http
         .post(
           server.pluginUri('api/logs/level'),
           headers: _headers,
@@ -77,7 +82,7 @@ class PluginClient {
 
   Future<void> clearLogs() async {
     _ensureConfigured();
-    final response = await http
+    final response = await _http
         .delete(server.pluginUri('api/logs'), headers: _headers)
         .timeout(_timeout);
     _decode(response);

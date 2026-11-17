@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
+import 'e2e.dart';
 import 'l10n.dart';
 import 'models.dart';
 import 'stream_probe.dart';
@@ -138,6 +139,13 @@ class LmClient {
 
   http.Client get _http => _client ??= http.Client();
 
+  /// Wraps the shared client when this server uses E2E over the relay.
+  http.Client _clientFor(ServerConfig server) {
+    final base = _http;
+    if (!server.hasRelayE2e) return base;
+    return RelayE2eClient(server, base);
+  }
+
   /// Refuses cleartext API requests to public hosts before any socket is opened.
   void _ensureBaseSafe(ServerConfig server) {
     final error = server.baseSecurityError;
@@ -207,7 +215,7 @@ class LmClient {
 
   Future<BridgeHealth> bridgeHealth(ServerConfig server) async {
     _ensureBridgeSafe(server);
-    final response = await _http
+    final response = await _clientFor(server)
         .get(server.bridgeUri('health'), headers: _bridgeHeaders(server))
         .timeout(const Duration(seconds: 10));
     final decoded = _decodeBridge(response.body);
@@ -246,7 +254,7 @@ class LmClient {
       if (ttlSeconds != null && ttlSeconds > 0) 'ttl': ttlSeconds,
       if (gpuRatio != null) 'gpu': _bridgeGpu(gpuRatio),
     };
-    final response = await _http
+    final response = await _clientFor(server)
         .post(
           server.bridgeUri('load'),
           headers: _bridgeHeaders(server),
@@ -270,7 +278,7 @@ class LmClient {
   }) async {
     _ensureBridgeSafe(server);
     final body = all ? {'all': true} : {'model': model ?? ''};
-    final response = await _http
+    final response = await _clientFor(server)
         .post(
           server.bridgeUri('unload'),
           headers: _bridgeHeaders(server),
@@ -297,7 +305,7 @@ class LmClient {
         'context_length': contextLength,
       if (gpuRatio != null) 'gpu': _bridgeGpu(gpuRatio),
     };
-    final response = await _http
+    final response = await _clientFor(server)
         .post(
           server.bridgeUri('estimate'),
           headers: _bridgeHeaders(server),
@@ -347,7 +355,7 @@ class LmClient {
   /// on older LM Studio builds.
   Future<List<LmModelInfo>> fetchModelsInfo(ServerConfig server) async {
     _ensureBaseSafe(server);
-    final response = await _http
+    final response = await _clientFor(server)
         .get(server.apiV1('models'), headers: _headers(server))
         .timeout(const Duration(seconds: 20));
 
@@ -360,7 +368,7 @@ class LmClient {
       throw ApiException(_httpError(response.statusCode, response.body));
     }
 
-    final compat = await _http
+    final compat = await _clientFor(server)
         .get(server.modelsUri, headers: _headers(server))
         .timeout(const Duration(seconds: 20));
     if (compat.statusCode != 200) {
@@ -460,7 +468,7 @@ class LmClient {
     ServerConfig server,
     Map<String, dynamic> body,
   ) {
-    return _http
+    return _clientFor(server)
         .post(
           server.apiV1('models/load'),
           headers: _headers(server),
@@ -495,7 +503,7 @@ class LmClient {
 
   Future<void> unloadModel(ServerConfig server, String instanceId) async {
     _ensureBaseSafe(server);
-    final response = await _http
+    final response = await _clientFor(server)
         .post(
           server.apiV1('models/unload'),
           headers: _headers(server),
@@ -529,7 +537,7 @@ class LmClient {
     _ensureBridgeSafe(server);
     _cancelled = false;
     final job = jobId ?? newId();
-    final response = await _http
+    final response = await _clientFor(server)
         .post(
           server.bridgeUri('chat'),
           headers: _bridgeHeaders(server),
@@ -591,7 +599,7 @@ class LmClient {
       while (!_cancelled) {
         http.Response response;
         try {
-          response = await _http
+          response = await _clientFor(server)
               .get(
                 server.bridgeUri('chat/$job?since=$next&wait=20'),
                 headers: _bridgeHeaders(server),
@@ -661,7 +669,7 @@ class LmClient {
 
   Future<void> _cancelBridgeJob(ServerConfig server, String job) async {
     _ensureBridgeSafe(server);
-    await _http
+    await _clientFor(server)
         .post(
           server.bridgeUri('chat/$job/cancel'),
           headers: _bridgeHeaders(server),
@@ -724,7 +732,7 @@ class LmClient {
           includeUsage: withUsage,
         ),
       );
-      return _http.send(request).timeout(responseTimeout);
+      return _clientFor(server).send(request).timeout(responseTimeout);
     }
 
     var response = await send(withUsage: true);
@@ -843,7 +851,9 @@ class LmClient {
 
     var completed = false;
     try {
-      final response = await _http.send(request).timeout(responseTimeout);
+      final response = await _clientFor(server)
+          .send(request)
+          .timeout(responseTimeout);
       if (response.statusCode != 200) {
         final error = await response.stream.bytesToString();
         throw ApiException(_httpError(response.statusCode, error));

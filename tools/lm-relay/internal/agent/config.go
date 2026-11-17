@@ -26,6 +26,8 @@ type Config struct {
 	// default because the plugin would then stay down until someone touches
 	// the machine.
 	AllowShutdown bool `json:"allow_shutdown"`
+	// IdentityFile is the agent's X25519 key. It is created on first start.
+	IdentityFile string `json:"identity_file,omitempty"`
 }
 
 var defaultServices = map[string]string{

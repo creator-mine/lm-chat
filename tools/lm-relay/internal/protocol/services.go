@@ -6,4 +6,6 @@ const (
 	ServiceLMStudio = "lmstudio"
 	ServiceBridge   = "bridge"
 	ServicePlugin   = "plugin"
+	// ServiceE2E is the opaque transport used for end-to-end encryption.
+	ServiceE2E = "e2e"
 )

@@ -85,16 +85,16 @@ LM Chat ── HTTPS/SSE ──▶ nginx (TLS) ──▶ relay ◀── WSS ─
 - [x] Приложение: режим `relay` в `ServerConfig` (`relayUrl`, `relayDevice`,
       `relayToken`), автозаполнение `pluginUrl` и `bridgeUrl` тем же origin,
       заголовок `X-Relay-Token`, `chatViaBridge` по умолчанию.
-- [ ] Настройки: блок «Доступ через интернет», переключатель E2E, поле
-      отпечатка, статус «Relay: онлайн/офлайн». Блок relay добавлен, E2E и
-      статус — нет.
+- [x] Настройки: блок «Доступ через интернет», переключатель E2E, поле
+      публичного ключа и отпечаток.
+- [ ] Статус «Relay: онлайн/офлайн» в диагностике.
 - [ ] Пиннинг сертификата для IP-варианта: `SecurityContext` + `IOClient`,
       проверка IP SAN.
-- [ ] E2E: handshake, AEAD-потоки, защита от replay, запрет отката,
-      отпечаток в диагностике.
+- [x] E2E: handshake, AEAD-потоки, защита от replay, запрет отката,
+      отпечаток в настройках. Проверено Dart ↔ Go на реальном плагине.
 - [x] Тесты: Go unit/integration с фейковым агентом, Dart-тесты relay-режима.
 - [ ] Smoke-скрипт через nginx.
-- [x] Документация: `tools/lm-relay/README.md`.
+- [x] Документация: `tools/lm-relay/README.md`, включая E2E.
 - [ ] Документация: README, `wiki/Bridge.md`, новый `wiki/Remote.md`,
       `wiki/Security.md`, `wiki/Troubleshooting.md`.
 

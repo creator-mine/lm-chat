@@ -359,6 +359,8 @@ class ServerConfig {
     this.relayUrl = '',
     this.relayDevice = '',
     this.relayToken = '',
+    this.relayE2e = false,
+    this.relayPublicKey = '',
   });
 
   final String id;
@@ -385,6 +387,12 @@ class ServerConfig {
   /// Token for the relay itself (`X-Relay-Token`). Falls back to the plugin
   /// token when empty, so one secret can protect both.
   String relayToken;
+
+  /// Encrypt app↔agent traffic inside the relay.
+  bool relayE2e;
+
+  /// Pinned X25519 public key of the agent, in base64 or hex.
+  String relayPublicKey;
 
   /// Send chat requests through the bridge so the answer is generated on the
   /// server and survives the app being backgrounded or killed.
@@ -444,6 +452,10 @@ class ServerConfig {
     if (token.isEmpty) return const {};
     return {'X-Relay-Token': token};
   }
+
+  /// True when the relay transport must be wrapped in E2E encryption.
+  bool get hasRelayE2e =>
+      hasRelay && relayE2e && relayPublicKey.trim().isNotEmpty;
 
   /// Accepts `192.168.1.5:1234`, `http://host:1234/` or `http://host:1234/v1`.
   String get normalizedBase {
@@ -651,6 +663,9 @@ class ServerConfig {
     if (relayUrl.trim().isNotEmpty) 'relayUrl': relayUrl.trim(),
     if (relayDevice.trim().isNotEmpty) 'relayDevice': relayDevice.trim(),
     if (includeSecrets && relayToken.isNotEmpty) 'relayToken': relayToken,
+    if (relayE2e) 'relayE2e': true,
+    if (relayPublicKey.trim().isNotEmpty)
+      'relayPublicKey': relayPublicKey.trim(),
   };
 
   factory ServerConfig.fromJson(Map<String, dynamic> json) => ServerConfig(
@@ -669,6 +684,8 @@ class ServerConfig {
     relayUrl: json['relayUrl'] as String? ?? '',
     relayDevice: json['relayDevice'] as String? ?? '',
     relayToken: json['relayToken'] as String? ?? '',
+    relayE2e: json['relayE2e'] as bool? ?? false,
+    relayPublicKey: json['relayPublicKey'] as String? ?? '',
   );
 
   ServerConfig clone() => ServerConfig(
@@ -686,6 +703,8 @@ class ServerConfig {
     relayUrl: relayUrl,
     relayDevice: relayDevice,
     relayToken: relayToken,
+    relayE2e: relayE2e,
+    relayPublicKey: relayPublicKey,
   );
 }
 

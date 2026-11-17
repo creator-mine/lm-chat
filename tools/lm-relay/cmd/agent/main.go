@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -14,6 +15,7 @@ import (
 func main() {
 	configPath := flag.String("config", "agent.json", "path to the agent configuration")
 	logLevel := flag.String("log-level", "info", "log level: debug, info, warn or error")
+	printIdentity := flag.Bool("print-identity", false, "print the E2E public key and fingerprint, then exit")
 	flag.Parse()
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
@@ -29,6 +31,11 @@ func main() {
 	if err != nil {
 		logger.Error("agent error", "error", err)
 		os.Exit(1)
+	}
+	if *printIdentity {
+		fmt.Printf("public_key: %s\n", runner.PublicKey())
+		fmt.Printf("fingerprint: %s\n", runner.Fingerprint())
+		return
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

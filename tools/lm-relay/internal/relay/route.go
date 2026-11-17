@@ -1,6 +1,10 @@
 package relay
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/Spe4naz/lm-chat/tools/lm-relay/internal/protocol"
+)
 
 // routeService maps a public path to the local service that serves it.
 //
@@ -9,6 +13,8 @@ import "strings"
 // LM Studio calls the plugin locally.
 func routeService(path string) (string, bool) {
 	switch {
+	case path == "/_e2e":
+		return protocol.ServiceE2E, true
 	case path == "/v1", strings.HasPrefix(path, "/v1/"):
 		return ServiceLMStudio, true
 	case path == "/api/v1", strings.HasPrefix(path, "/api/v1/"):
