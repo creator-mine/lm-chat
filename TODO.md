@@ -69,29 +69,32 @@ LM Chat ── HTTPS/SSE ──▶ nginx (TLS) ──▶ relay ◀── WSS ─
 
 **Задачи**
 
-- [ ] Протокол мультиплекса: backpressure, half-close, отмена потока,
+- [x] Протокол мультиплекса: backpressure, half-close, отмена потока,
       reconnect.
-- [ ] `relay`: HTTP-фронт, WSS-туннель, аутентификация, лимиты, таймауты,
+- [x] `relay`: HTTP-фронт, WSS-туннель, аутентификация, лимиты, таймауты,
       healthcheck, метрики без содержимого.
-- [ ] `agent`: конфиг из `~/.config/lm-computer/token.txt`, allowlist,
-      проксирование на 1234/1235/1236, systemd unit, служба Windows.
-- [ ] `deploy/nginx/lm-relay.conf`: `proxy_buffering off`,
+- [x] `agent`: конфиг из `~/.config/lm-computer/token.txt`, allowlist,
+      проксирование на 1234/1235/1236, systemd unit.
+- [ ] Windows: служба или автозапуск для `agent.exe`.
+- [x] `deploy/nginx/lm-relay.conf`: `proxy_buffering off`,
       `proxy_read_timeout 900s`, `proxy_request_buffering off`,
       `client_max_body_size 16m`, `gzip off`, WS upgrade, access log без query.
       Certbot для домена/`sslip.io` или `openssl` + IP SAN.
-- [ ] `docker-compose.yml`: relay на `127.0.0.1:8787`, non-root, read-only FS,
+- [x] `docker-compose.yml`: relay на `127.0.0.1:8787`, non-root, read-only FS,
       без shell.
-- [ ] Приложение: режим `relay` в `ServerConfig` (`relayUrl`, `relayDevice`,
+- [x] Приложение: режим `relay` в `ServerConfig` (`relayUrl`, `relayDevice`,
       `relayToken`), автозаполнение `pluginUrl` и `bridgeUrl` тем же origin,
       заголовок `X-Relay-Token`, `chatViaBridge` по умолчанию.
 - [ ] Настройки: блок «Доступ через интернет», переключатель E2E, поле
-      отпечатка, статус «Relay: онлайн/офлайн».
+      отпечатка, статус «Relay: онлайн/офлайн». Блок relay добавлен, E2E и
+      статус — нет.
 - [ ] Пиннинг сертификата для IP-варианта: `SecurityContext` + `IOClient`,
       проверка IP SAN.
 - [ ] E2E: handshake, AEAD-потоки, защита от replay, запрет отката,
       отпечаток в диагностике.
-- [ ] Тесты: Go unit/integration с фейковым агентом, Dart-тесты relay-режима,
-      smoke-скрипт через nginx.
+- [x] Тесты: Go unit/integration с фейковым агентом, Dart-тесты relay-режима.
+- [ ] Smoke-скрипт через nginx.
+- [x] Документация: `tools/lm-relay/README.md`.
 - [ ] Документация: README, `wiki/Bridge.md`, новый `wiki/Remote.md`,
       `wiki/Security.md`, `wiki/Troubleshooting.md`.
 
