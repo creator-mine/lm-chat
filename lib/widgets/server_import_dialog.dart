@@ -124,6 +124,7 @@ Future<void> _showPreview(
   BuildContext context,
   SharedServerBundle bundle,
 ) async {
+  final existingServers = context.read<AppState>().servers;
   final accepted = await showDialog<bool>(
     context: context,
     builder: (dialogContext) {
@@ -140,20 +141,48 @@ Future<void> _showPreview(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 for (final server in bundle.servers)
-                  ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(
-                      server.hasRelay
-                          ? Icons.cloud_outlined
-                          : Icons.lan_outlined,
-                      size: 18,
-                    ),
-                    title: Text(server.name),
-                    subtitle: Text(
-                      serverLabel(server),
-                      style: const TextStyle(fontSize: 11),
-                    ),
+                  Builder(
+                    builder: (_) {
+                      final match = findServerForShared(
+                        existingServers,
+                        server,
+                      );
+                      return ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(
+                          server.hasRelay
+                              ? Icons.cloud_outlined
+                              : Icons.lan_outlined,
+                          size: 18,
+                        ),
+                        title: Text(server.name),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              serverLabel(server),
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                            if (match != null)
+                              Text(
+                                server.hasRelay && !match.hasRelay
+                                    ? L10n.t(
+                                        'Обновит существующий сервер: '
+                                        'добавит relay',
+                                      )
+                                    : L10n.t('Обновит существующий сервер'),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: server.hasRelay && !match.hasRelay
+                                      ? scheme.error
+                                      : scheme.onSurfaceVariant,
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
                 if (bundle.skipped > 0)
                   Text(

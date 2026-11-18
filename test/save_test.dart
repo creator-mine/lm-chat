@@ -190,6 +190,28 @@ void main() {
       expect(text, isNot(contains('bridge-secret')));
     }
   });
+
+  test('history from a newer schema is never overwritten', () async {
+    final dir = await Directory.systemTemp.createTemp('lm_chat_future_');
+    addTearDown(() => dir.delete(recursive: true));
+    final target = File(
+      '${dir.path}${Platform.pathSeparator}lm_chat_data.json',
+    );
+    final future = jsonEncode({
+      'schemaVersion': AppData.currentSchemaVersion + 1,
+      'chats': <dynamic>[],
+      'marker': 'keep-me',
+    });
+    await target.writeAsString(future);
+
+    final state = AppState(secretStore: MemorySecretStore());
+    state.dataFileOverride = () async => target;
+    await state.init();
+    state.data.chats.add(ChatSession(id: 'new', serverId: 'server'));
+    await state.saveForTest();
+
+    expect(await target.readAsString(), future);
+  });
 }
 
 class _UnavailableSecretStore implements SecretStore {

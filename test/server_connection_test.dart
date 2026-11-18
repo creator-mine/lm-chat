@@ -69,6 +69,29 @@ void main() {
     expect(state.isDisconnected, isTrue);
   });
 
+  test('connecting switches the open chat to the new server', () async {
+    final state = AppState();
+    addTearDown(state.dispose);
+    final first = _server();
+    final second = ServerConfig(
+      id: 's2',
+      name: 'Ноутбук',
+      baseUrl: 'http://127.0.0.1:1',
+    );
+    final chat = ChatSession(id: 'c1', serverId: first.id, model: 'model-a');
+    state.data.servers.addAll([first, second]);
+    state.data.chats.add(chat);
+    state.activeChat = chat;
+    state.setActiveServer(first.id);
+
+    final result = await state.connectToServer(second);
+
+    expect(result.error, isNotNull);
+    expect(state.activeServer, second);
+    expect(chat.serverId, second.id);
+    expect(chat.model, isEmpty);
+  });
+
   testWidgets('the server menu connects and disconnects', (tester) async {
     final state = AppState();
     addTearDown(state.dispose);

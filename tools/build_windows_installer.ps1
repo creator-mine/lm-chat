@@ -14,8 +14,17 @@ if (-not $versionLine) {
 }
 $version = $versionLine.Matches[0].Groups[1].Value.Trim().Split('+')[0]
 
+$publisher = $env:LMCHAT_WINDOWS_PUBLISHER
+if ($env:LMCHAT_SIGN_CERT -and [string]::IsNullOrWhiteSpace($publisher)) {
+    throw 'Set LMCHAT_WINDOWS_PUBLISHER so the updater can pin the signing publisher.'
+}
+
 Write-Host "LM Chat ${version}: building Windows release..."
-flutter build windows --release
+$buildArgs = @('build', 'windows', '--release')
+if (-not [string]::IsNullOrWhiteSpace($publisher)) {
+    $buildArgs += "--dart-define=LM_CHAT_WINDOWS_PUBLISHER=$publisher"
+}
+flutter @buildArgs
 if ($LASTEXITCODE -ne 0) {
     throw 'flutter build windows failed'
 }

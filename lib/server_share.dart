@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'limited_gzip.dart';
 import 'models.dart';
 
 enum ServerShareMode { withoutRelay, withRelay }
@@ -149,24 +150,6 @@ class ServerShareCodec {
 
   static bool fitsQr(String code) => utf8.encode(code).length <= maxQrBytes;
 
-  /// Decompresses in chunks and aborts before a small code can expand into a
-  /// multi-megabyte payload.
-  static List<int> _gunzipLimited(List<int> bytes) {
-    final builder = BytesBuilder(copy: false);
-    var total = 0;
-    final sink = _LimitedSink((data) {
-      total += data.length;
-      if (total > maxCodeBytes) {
-        throw ServerShareException('Код сервера слишком большой');
-      }
-      builder.add(data);
-    });
-    final input = gzip.decoder.startChunkedConversion(sink);
-    input.add(bytes);
-    input.close();
-    return builder.takeBytes();
-  }
-
   static SharedServerBundle decode(String text) {
     final matches = RegExp(r'LMSRV(S?)(Z?)1\.([A-Za-z0-9_-]+)')
         .allMatches(text);
@@ -183,9 +166,11 @@ class ServerShareCodec {
       if (bytes.length > maxCodeBytes) {
         throw ServerShareException('Код сервера слишком большой');
       }
-      raw = gzipEncoded ? _gunzipLimited(bytes) : bytes;
+      raw = gzipEncoded ? decodeGzipLimited(bytes, maxCodeBytes) : bytes;
     } on ServerShareException {
       rethrow;
+    } on GzipLimitException {
+      throw ServerShareException('Код сервера слишком большой');
     } catch (_) {
       throw ServerShareException('Повреждённый код сервера');
     }
@@ -291,7 +276,7 @@ ServerShareImportResult mergeSharedServers(
   var tokens = 0;
 
   for (final shared in bundle.servers) {
-    final existing = _findServer(data.servers, shared);
+    final existing = findServerForShared(data.servers, shared);
     if (existing == null) {
       final map = shared.toJson(includeSecrets: false);
       map['id'] = newId();
@@ -350,10 +335,12 @@ ServerShareImportResult mergeSharedServers(
   );
 }
 
-ServerConfig? _findServer(List<ServerConfig> servers, ServerConfig shared) {
-  for (final server in servers) {
-    if (server.id == shared.id) return server;
-  }
+ServerConfig? findServerForShared(
+  List<ServerConfig> servers,
+  ServerConfig shared,
+) {
+  // An id inside a share code is untrusted: ignoring it prevents a crafted
+  // code from attaching its relay to an unrelated local server.
   final relay = shared.normalizedRelay.toLowerCase();
   if (relay.isNotEmpty) {
     for (final server in servers) {
@@ -373,16 +360,4 @@ ServerConfig? _findServer(List<ServerConfig> servers, ServerConfig shared) {
     }
   }
   return null;
-}
-
-class _LimitedSink implements Sink<List<int>> {
-  _LimitedSink(this._add);
-
-  final void Function(List<int> data) _add;
-
-  @override
-  void add(List<int> data) => _add(data);
-
-  @override
-  void close() {}
 }

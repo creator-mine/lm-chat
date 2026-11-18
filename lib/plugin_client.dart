@@ -23,9 +23,16 @@ class PluginClient {
 
   final ServerConfig server;
 
-  late final http.Client _http = server.hasRelayE2e
-      ? RelayE2eClient(server)
-      : http.Client();
+  http.Client? _client;
+
+  http.Client get _http =>
+      _client ??= server.hasRelayE2e ? RelayE2eClient(server) : http.Client();
+
+  /// Releases the underlying HTTP connections.
+  void close() {
+    _client?.close();
+    _client = null;
+  }
 
   static const Duration _timeout = Duration(seconds: 10);
 

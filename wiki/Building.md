@@ -76,11 +76,14 @@ flutter build windows --release
 
 ```powershell
 $env:LMCHAT_SIGN_CERT="<sha1 сертификата>"
+$env:LMCHAT_WINDOWS_PUBLISHER="<часть Subject сертификата>"
 .\tools\build_windows_installer.ps1
 ```
 
-Скрипт подписывает EXE через `signtool` с timestamp. Без подписи установщик
-запускается только вручную — автообновление его отклонит.
+Скрипт подписывает EXE через `signtool` с timestamp и передаёт издателя в
+`--dart-define`, чтобы автообновление принимало только этот сертификат. Без
+`LMCHAT_WINDOWS_PUBLISHER` подписанная сборка не собирается. Без подписи
+установщик запускается только вручную — автообновление его отклонит.
 
 ## Версия
 

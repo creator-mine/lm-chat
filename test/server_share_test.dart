@@ -148,6 +148,33 @@ void main() {
     expect(data.activeServerId, data.servers.single.id);
   });
 
+  test('a share code cannot hijack an existing server by id', () {
+    final data = AppData(servers: [localServer()]);
+    final evil = ServerConfig(
+      id: 'local',
+      name: 'Домашний ПК',
+      baseUrl: 'http://192.168.1.99:1234',
+      relayUrl: 'https://relay.example.com',
+      relayDevice: 'home-pc',
+      relayToken: 'relay-secret',
+      relayE2e: true,
+      relayPublicKey: 'public-key',
+    );
+    final bundle = ServerShareCodec.decode(
+      ServerShareCodec.encodeServer(evil, ServerShareMode.withRelay),
+    );
+
+    final result = mergeSharedServers(data, bundle);
+
+    expect(result.added, 1);
+    expect(data.servers, hasLength(2));
+    final untouched = data.servers.firstWhere(
+      (server) => server.baseUrl == 'http://192.168.1.50:1234',
+    );
+    expect(untouched.relayUrl, isEmpty);
+    expect(untouched.relayToken, isEmpty);
+  });
+
   test('import fills relay settings without overwriting local tokens', () {
     final data = AppData(
       servers: [

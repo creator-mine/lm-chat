@@ -28,6 +28,7 @@ class HistoryStore {
   bool _secretsAvailable = false;
   bool _secretsDirty = false;
   bool _warnedNoKeystore = false;
+  bool _readOnly = false;
   Timer? _saveTimer;
   Future<void> _saveChain = Future<void>.value();
 
@@ -39,6 +40,17 @@ class HistoryStore {
       final decoded = await _readDataFile(dataFile);
       hadPlaintextSecrets = _containsSecrets(decoded);
       if (decoded != null) data = AppData.fromJson(decoded);
+    } on SchemaTooNewException catch (error) {
+      // Never overwrite a file written by a newer build: the old app does not
+      // know its fields and would silently destroy them on the next save.
+      _readOnly = true;
+      onStatus?.call(
+        L10n.tf(
+          'История создана более новой версией LM Chat: {version}. '
+          'Обновите приложение.',
+          {'version': error.version},
+        ),
+      );
     } catch (error) {
       onStatus?.call(
         L10n.tf('Не удалось загрузить историю: {error}', {'error': error}),
@@ -111,6 +123,7 @@ class HistoryStore {
   }
 
   Future<void> saveNow({bool scrubBackup = false}) {
+    if (_readOnly) return Future<void>.value();
     final next = _saveChain.then((_) async {
       await _syncSecretsIfNeeded();
       if (!_secretsAvailable &&
@@ -258,13 +271,17 @@ class HistoryStore {
     Future<Map<String, dynamic>?> parse(File source) async {
       if (!await source.exists()) return null;
       final decoded = jsonDecode(await source.readAsString());
-      if (decoded is Map<String, dynamic>) return decoded;
+      if (decoded is Map<String, dynamic>) return AppData.migrate(decoded);
       throw const FormatException('Корень файла истории — не объект');
     }
 
     try {
       final decoded = await parse(file);
       if (decoded != null) return decoded;
+    } on SchemaTooNewException {
+      // The main file comes from a newer build. Do not fall back to a backup:
+      // the next save would overwrite the newer file.
+      rethrow;
     } catch (_) {
       final restored = await parse(File('${file.path}.bak'));
       if (restored != null) {

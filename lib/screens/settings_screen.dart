@@ -1521,8 +1521,9 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
       }
     }
     if (server.hasPlugin && server.pluginToken.trim().isNotEmpty) {
+      final client = PluginClient(server);
       try {
-        final plugin = await PluginClient(server).status();
+        final plugin = await client.status();
         lines.add(
           L10n.tf('Плагин lm-computer {version}, лог: {level}', {
             'version': plugin.version.isEmpty ? '?' : plugin.version,
@@ -1537,6 +1538,8 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
       } catch (error) {
         ok = false;
         lines.add(L10n.tf('Плагин lm-computer: {error}', {'error': error}));
+      } finally {
+        client.close();
       }
     }
     setState(() {

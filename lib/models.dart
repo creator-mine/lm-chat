@@ -3,8 +3,9 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
+final Random _idRandom = Random.secure();
 String newId() =>
-    '${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(0x7fffffff)}';
+    '${DateTime.now().microsecondsSinceEpoch}-${_idRandom.nextInt(0x7fffffff)}';
 
 /// Short chat title from the first user message.
 ///
@@ -1718,9 +1719,33 @@ const builtInPromptTemplates = <PromptTemplate>[
   ),
 ];
 
+/// The history file was written by a newer build with an unknown schema.
+class SchemaTooNewException implements Exception {
+  const SchemaTooNewException(this.version);
+
+  final int version;
+
+  @override
+  String toString() =>
+      'История создана более новой версией LM Chat (schema $version)';
+}
+
 class AppData {
   /// Increment when the on-disk shape changes in a way that needs migration.
   static const int currentSchemaVersion = 15;
+
+  /// Validates the on-disk schema and stamps it with the current version.
+  ///
+  /// Data from a newer build is rejected instead of being silently parsed and
+  /// rewritten with a lower version. Add version-specific steps here as the
+  /// format evolves; [fromJson] keeps old optional fields backward compatible.
+  static Map<String, dynamic> migrate(Map<String, dynamic> json) {
+    final version = (json['schemaVersion'] as num?)?.toInt() ?? 1;
+    if (version > currentSchemaVersion) {
+      throw SchemaTooNewException(version);
+    }
+    return {...json, 'schemaVersion': currentSchemaVersion};
+  }
 
   AppData({
     List<ServerConfig>? servers,

@@ -522,9 +522,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// Makes [server] active and checks that it is reachable.
   Future<ModelFetchResult> connectToServer(ServerConfig server) async {
     final chat = activeChat;
+    final switched = chat != null && chat.serverId != server.id;
     data.activeServerId = server.id;
-    if (chat != null && chat.serverId.trim().isEmpty) {
+    if (switched) {
+      // The open chat must follow the newly connected server; otherwise the
+      // header shows one server while messages are sent to another.
       chat.serverId = server.id;
+      chat.model = '';
     }
     _scheduleSave();
     notifyListeners();
@@ -1675,6 +1679,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final keepAlive = data.backgroundGeneration;
     if (keepAlive) await BackgroundKeepAlive.start('Готовится ответ…');
     final partial = Stopwatch()..start();
+    final uiTicker = Stopwatch()..start();
+    var lastUiMs = -1000;
     final generation = Stopwatch();
     int? serverElapsedMs;
 
@@ -1704,7 +1710,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
           partial.reset();
           _scheduleSave();
         }
-        notifyListeners();
+        // A model can emit dozens of chunks per second. Rebuilding the whole
+        // chat for each token is wasteful; coalesce UI updates to ~20 fps.
+        final uiMs = uiTicker.elapsedMilliseconds;
+        if (uiMs - lastUiMs >= 50) {
+          lastUiMs = uiMs;
+          notifyListeners();
+        }
       }
     } catch (error) {
       if (!_generation.isAborted(chat.id)) {

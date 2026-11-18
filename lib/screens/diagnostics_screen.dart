@@ -400,13 +400,17 @@ class _PluginLogCardState extends State<_PluginLogCard> {
     });
     try {
       final client = PluginClient(server);
-      final status = await client.status();
-      final page = await client.logs();
-      if (!mounted) return;
-      setState(() {
-        _status = status;
-        _page = page;
-      });
+      try {
+        final status = await client.status();
+        final page = await client.logs();
+        if (!mounted) return;
+        setState(() {
+          _status = status;
+          _page = page;
+        });
+      } finally {
+        client.close();
+      }
     } on PluginException catch (error) {
       if (mounted) setState(() => _error = error.message);
     } catch (error) {
@@ -422,7 +426,12 @@ class _PluginLogCardState extends State<_PluginLogCard> {
       _error = null;
     });
     try {
-      await PluginClient(server).setLogLevel(level);
+      final client = PluginClient(server);
+      try {
+        await client.setLogLevel(level);
+      } finally {
+        client.close();
+      }
       await _refresh(server);
     } on PluginException catch (error) {
       if (mounted) setState(() => _error = error.message);
@@ -436,7 +445,12 @@ class _PluginLogCardState extends State<_PluginLogCard> {
   Future<void> _clear(ServerConfig server) async {
     setState(() => _error = null);
     try {
-      await PluginClient(server).clearLogs();
+      final client = PluginClient(server);
+      try {
+        await client.clearLogs();
+      } finally {
+        client.close();
+      }
       await _refresh(server);
     } on PluginException catch (error) {
       if (mounted) setState(() => _error = error.message);

@@ -559,6 +559,9 @@ class L10n {
     'Продолжить': 'Continue',
     'Импорт серверов': 'Import servers',
     'Импорт сервера': 'Import server',
+    'Обновит существующий сервер': 'Updates an existing server',
+    'Обновит существующий сервер: добавит relay':
+        'Updates an existing server: adds a relay',
     'Пропущено серверов: {count}': 'Servers skipped: {count}',
     'Код содержит токен relay. Он будет сохранён в защищённом хранилище этого устройства.': 'The code contains a relay token. It will be stored in the secure storage of this device.',
     'добавлено: {count}': 'added: {count}',

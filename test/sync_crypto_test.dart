@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lm_chat/sync/bundle.dart';
 import 'package:lm_chat/sync/crypto.dart';
 import 'package:lm_chat/sync/store.dart';
 
@@ -88,5 +89,10 @@ void main() {
   test('short ids are stable and readable', () {
     expect(syncShortId('abcdef0123456789'), 'ABCDEF');
     expect(syncShortId('abc'), 'ABC');
+  });
+
+  test('a gzip bomb in a sync bundle is rejected before it expands', () {
+    final bomb = Uint8List.fromList(gzip.encode(Uint8List(70 * 1024 * 1024)));
+    expect(() => SyncBundle.decode(bomb), throwsA(isA<SyncException>()));
   });
 }

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import '../limited_gzip.dart';
 import '../models.dart';
 import 'crypto.dart';
 
@@ -174,14 +175,23 @@ class SyncBundle {
     }
     late final List<int> raw;
     try {
-      raw = gzip.decode(bytes);
+      raw = decodeGzipLimited(bytes, syncMaxBundleBytes);
+    } on GzipLimitException {
+      throw SyncException('История слишком большая для синхронизации');
     } on FormatException {
+      throw SyncException('Повреждённый пакет синхронизации');
+    } catch (_) {
       throw SyncException('Повреждённый пакет синхронизации');
     }
     if (raw.length > syncMaxBundleBytes) {
       throw SyncException('История слишком большая для синхронизации');
     }
-    final decoded = jsonDecode(utf8.decode(raw));
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(utf8.decode(raw));
+    } catch (_) {
+      throw SyncException('Повреждённый пакет синхронизации');
+    }
     if (decoded is! Map<String, dynamic>) {
       throw SyncException('Повреждённый пакет синхронизации');
     }

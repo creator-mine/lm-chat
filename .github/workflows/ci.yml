@@ -36,10 +36,49 @@ jobs:
         run: flutter analyze
 
       - name: Test
-        run: flutter test
+        run: flutter test --coverage
+
+      - name: Coverage floor
+        run: |
+          awk -F: '/^LH:/{hit+=$2} /^LF:/{total+=$2} END {
+            pct = total ? 100*hit/total : 0;
+            printf "Line coverage: %.1f%% (%d/%d)\n", pct, hit, total;
+            if (pct < 50) exit 1;
+          }' coverage/lcov.info
 
       - name: Dependency report
         run: flutter pub outdated || true
 
       - name: Build debug APK
         run: flutter build apk --debug
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.2"
+          cache: true
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Windows release
+        run: flutter build windows --release
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Bridge self-tests
+        run: python3 tools/test_lms_gpu_bridge.py
