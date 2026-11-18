@@ -10,14 +10,18 @@ import '../format_utils.dart';
 import '../l10n_text.dart';
 import '../models.dart';
 import '../plugin_client.dart';
+import '../server_share.dart';
 import '../theme.dart';
 import '../widgets/model_picker.dart';
 import '../widgets/model_settings_sheet.dart';
 import '../widgets/params_sheet.dart';
 import '../widgets/profile_sheet.dart';
 import '../widgets/prompt_library_sheet.dart';
+import '../widgets/server_import_dialog.dart';
+import '../widgets/server_share_sheet.dart';
 import '../widgets/update_banner.dart';
 import 'diagnostics_screen.dart';
+import 'qr_scan_screen.dart';
 import 'sync_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -43,10 +47,36 @@ class SettingsScreen extends StatelessWidget {
             children: [
               _SectionHeader(
                 title: 'Серверы',
-                trailing: IconButton(
-                  onPressed: () => _editServer(context),
-                  icon: const Icon(Icons.add_rounded),
-                  tooltip: L10n.t('Добавить сервер'),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (state.servers.isNotEmpty)
+                      IconButton(
+                        onPressed: () => _shareAllServers(context, state),
+                        icon: const Icon(Icons.ios_share_rounded),
+                        tooltip: L10n.t('Поделиться всеми'),
+                      ),
+                    PopupMenuButton<String>(
+                      onSelected: (value) => _addServerAction(context, value),
+                      icon: const Icon(Icons.add_rounded),
+                      tooltip: L10n.t('Добавить сервер'),
+                      itemBuilder: (_) => [
+                        PopupMenuItem(
+                          value: 'add',
+                          child: Text(L10n.t('Добавить сервер')),
+                        ),
+                        PopupMenuItem(
+                          value: 'import',
+                          child: Text(L10n.t('Импортировать по коду')),
+                        ),
+                        if (_canScanQr)
+                          PopupMenuItem(
+                            value: 'scan',
+                            child: Text(L10n.t('Сканировать QR')),
+                          ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
               if (state.servers.isEmpty)
@@ -868,6 +898,31 @@ String _launchSummary(LaunchSettings launch) => [
 String _hostOf(String url) =>
     url.replaceFirst('http://', '').replaceFirst('https://', '');
 
+bool get _canScanQr =>
+    !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
+Future<void> _shareAllServers(BuildContext context, AppState state) {
+  return showServerShareSheet(context, servers: state.servers, all: true);
+}
+
+Future<void> _addServerAction(BuildContext context, String value) async {
+  switch (value) {
+    case 'add':
+      await _editServer(context);
+    case 'import':
+      await showServerImportDialog(context);
+    case 'scan':
+      await _scanServerQr(context);
+  }
+}
+
+Future<void> _scanServerQr(BuildContext context) async {
+  final code = await Navigator.of(context)
+      .push<String>(MaterialPageRoute(builder: (_) => const QrScanScreen()));
+  if (code == null || !context.mounted) return;
+  await showServerImportDialog(context, initialCode: code);
+}
+
 Future<void> _editServer(BuildContext context, {ServerConfig? server}) async {
   final state = context.read<AppState>();
   final result = await showDialog<ServerConfig>(
@@ -997,6 +1052,21 @@ class _ServerTile extends StatelessWidget {
                 ],
               ),
             ),
+            if (ServerShareCodec.supports(
+                  server,
+                  ServerShareMode.withoutRelay,
+                ) ||
+                ServerShareCodec.supports(server, ServerShareMode.withRelay))
+              IconButton(
+                onPressed: () => showServerShareSheet(
+                  context,
+                  servers: [server],
+                  all: false,
+                ),
+                icon: const Icon(Icons.ios_share_rounded, size: 20),
+                tooltip: L10n.t('Поделиться сервером'),
+                visualDensity: VisualDensity.compact,
+              ),
             PopupMenuButton<String>(
               onSelected: (value) async {
                 switch (value) {

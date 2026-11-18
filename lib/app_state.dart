@@ -21,6 +21,7 @@ import 'model_catalog.dart';
 import 'models.dart';
 import 'profile.dart';
 import 'secret_store.dart';
+import 'server_share.dart';
 import 'settings_store.dart';
 import 'sync/bundle.dart';
 import 'sync/crypto.dart';
@@ -456,6 +457,22 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _store.markSecretsDirty();
     _scheduleSave();
     notifyListeners();
+  }
+
+  ServerShareImportResult importSharedServers(SharedServerBundle bundle) {
+    final result = mergeSharedServers(data, bundle);
+    if (result.changed) {
+      if (result.tokensImported > 0) _store.markSecretsDirty();
+      _scheduleSave();
+      notifyListeners();
+      AppLog.instance.info(
+        'Импортированы серверы',
+        detail:
+            'добавлено: ${result.added}, обновлено: ${result.updated}, '
+            'токенов: ${result.tokensImported}',
+      );
+    }
+    return result;
   }
 
   void updateServer(ServerConfig server) {
