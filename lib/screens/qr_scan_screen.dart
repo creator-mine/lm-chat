@@ -1,8 +1,10 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+
+import '../l10n_text.dart';
 
 class QrScanScreen extends StatefulWidget {
   const QrScanScreen({super.key});
@@ -53,7 +55,7 @@ class _QrScanScreenState extends State<QrScanScreen> {
           IconButton(
             onPressed: _paste,
             icon: const Icon(Icons.content_paste_rounded),
-            tooltip: 'Вставить код',
+            tooltip: L10n.t('Вставить код'),
           ),
         ],
       ),
