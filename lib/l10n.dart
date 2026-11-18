@@ -989,5 +989,10 @@ class L10n {
     'Создать ветку': 'Create branch',
     'Ветка создана': 'Branch created',
     'Открыть исходный чат': 'Open source chat',
+    'Сгенерировать ответ': 'Generate answer',
+    'Перегенерировать ответ': 'Regenerate answer',
+    'Создайте ветку, чтобы изменить старый ответ':
+        'Create a branch to change an older answer',
+    'Вниз': 'Scroll down',
   };
 }

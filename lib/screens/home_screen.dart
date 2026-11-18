@@ -35,6 +35,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final _scroll = ScrollController();
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   final _chatListKey = GlobalKey<ChatListState>();
+  bool _showScrollButton = false;
   late final bool _shortcutsEnabled =
       !kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.windows ||
@@ -56,6 +57,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _scroll.addListener(_onScrollChanged);
     if (_shortcutsEnabled) {
       HardwareKeyboard.instance.addHandler(_handleShortcut);
     }
@@ -204,8 +206,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _voice.removeListener(_onVoiceChanged);
     _voice.dispose();
     _input.dispose();
+    _scroll.removeListener(_onScrollChanged);
     _scroll.dispose();
     super.dispose();
+  }
+
+  void _onScrollChanged() {
+    final show = _scroll.hasClients && _scroll.offset > 160;
+    if (show != _showScrollButton && mounted) {
+      setState(() => _showScrollButton = show);
+    }
+  }
+
+  void _scrollToBottom() {
+    if (!_scroll.hasClients) return;
+    _scroll.animateTo(
+      0,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+    );
   }
 
   Future<void> _toggleVoice() async {
@@ -939,107 +958,178 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       onRetry: state.reconnect,
                     ),
                   Expanded(
-                    child: chat.messages.isEmpty
-                        ? _EmptyChat(
-                            onPrompt: (prompt) {
-                              final localized = L10n.t(prompt);
-                              _input.text = localized;
-                              _input.selection = TextSelection.collapsed(
-                                offset: localized.length,
-                              );
-                            },
-                          )
-                        : Selector<AppState, int>(
-                            selector: (_, state) => state.revision,
-                            builder: (context, _, _) => ListView.builder(
-                              controller: _scroll,
-                              reverse: true,
-                              padding: compact
-                                  ? const EdgeInsets.fromLTRB(16, 4, 14, 8)
-                                  : const EdgeInsets.fromLTRB(16, 8, 14, 14),
-                              itemCount: chat.messages.length,
-                              itemBuilder: (context, index) {
-                                final message = chat
-                                    .messages[chat.messages.length - 1 - index];
-                                final isLast = index == 0;
-                                return RepaintBoundary(
-                                  key: ValueKey(message.id),
-                                  child: MessageBubble(
-                                    message: message,
-                                    selectionMode: _selectionMode,
-                                    selected: _selectedMessageIds.contains(
-                                      message.id,
-                                    ),
-                                    onToggleSelection: () =>
-                                        _toggleMessageSelection(message),
-                                    onStartSelection: () =>
-                                        _startSelection(message),
-                                    showRetry:
-                                        isLast &&
-                                        message.role == 'assistant' &&
-                                        message.viewingLatest &&
-                                        !message.streaming &&
-                                        !view.sending,
-                                    onRetry: state.regenerate,
-                                    showContinue:
-                                        isLast &&
-                                        message.role == 'assistant' &&
-                                        message.viewingLatest &&
-                                        !message.streaming &&
-                                        !message.hasPendingJob &&
-                                        !view.sending,
-                                    onContinue: state.continueGeneration,
-                                    onDelete: message.streaming
-                                        ? null
-                                        : () => _confirmDeleteMessage(
-                                            state,
-                                            chat,
-                                            message,
-                                          ),
-                                    onSelectVersion: (number) => state
-                                        .selectMessageVersion(message, number),
-                                    onShowVersions: () => showVersionsSheet(
-                                      context,
-                                      message: message,
-                                      onSelect: (number) =>
-                                          state.selectMessageVersion(
-                                            message,
-                                            number,
-                                          ),
-                                      onDelete: (number) =>
-                                          state.deleteMessageVersion(
-                                            message,
-                                            number,
-                                          ),
-                                    ),
-                                    onShowStats: message.hasStats
-                                        ? () => showGenerationStats(
-                                            context,
-                                            message: message,
-                                            contextUsage: contextInfo,
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: chat.messages.isEmpty
+                              ? _EmptyChat(
+                                  onPrompt: (prompt) {
+                                    final localized = L10n.t(prompt);
+                                    _input.text = localized;
+                                    _input.selection = TextSelection.collapsed(
+                                      offset: localized.length,
+                                    );
+                                  },
+                                )
+                              : Selector<AppState, int>(
+                                  selector: (_, state) => state.revision,
+                                  builder: (context, _, _) => ListView.builder(
+                                    controller: _scroll,
+                                    reverse: true,
+                                    padding: compact
+                                        ? const EdgeInsets.fromLTRB(
+                                            16,
+                                            4,
+                                            14,
+                                            8,
                                           )
-                                        : null,
-                                    onEdit: message.streaming
-                                        ? null
-                                        : () => _editMessage(
+                                        : const EdgeInsets.fromLTRB(
+                                            16,
+                                            8,
+                                            14,
+                                            14,
+                                          ),
+                                    itemCount: chat.messages.length,
+                                    itemBuilder: (context, index) {
+                                      final message =
+                                          chat.messages[chat.messages.length -
+                                              1 -
+                                              index];
+                                      final isLast = index == 0;
+                                      final messageIndex =
+                                          chat.messages.length - 1 - index;
+                                      final lastUserIndex = chat.messages
+                                          .lastIndexWhere(
+                                            (item) => item.role == 'user',
+                                          );
+                                      final nextIsAnswer =
+                                          messageIndex + 1 <
+                                              chat.messages.length &&
+                                          chat
+                                                  .messages[messageIndex + 1]
+                                                  .role ==
+                                              'assistant';
+                                      final canGenerateAnswer =
+                                          message.isUser &&
+                                          messageIndex == lastUserIndex &&
+                                          !view.sending &&
+                                          (messageIndex ==
+                                                  chat.messages.length - 1 ||
+                                              (nextIsAnswer &&
+                                                  messageIndex + 1 ==
+                                                      chat.messages.length -
+                                                          1));
+                                      return RepaintBoundary(
+                                        key: ValueKey(message.id),
+                                        child: MessageBubble(
+                                          message: message,
+                                          selectionMode: _selectionMode,
+                                          selected: _selectedMessageIds
+                                              .contains(message.id),
+                                          onToggleSelection: () =>
+                                              _toggleMessageSelection(message),
+                                          onStartSelection: () =>
+                                              _startSelection(message),
+                                          showRetry:
+                                              isLast &&
+                                              message.role == 'assistant' &&
+                                              message.viewingLatest &&
+                                              !message.streaming &&
+                                              !view.sending,
+                                          onRetry: state.regenerate,
+                                          showContinue:
+                                              isLast &&
+                                              message.role == 'assistant' &&
+                                              message.viewingLatest &&
+                                              !message.streaming &&
+                                              !message.hasPendingJob &&
+                                              !view.sending,
+                                          onContinue: state.continueGeneration,
+                                          onDelete: message.streaming
+                                              ? null
+                                              : () => _confirmDeleteMessage(
+                                                  state,
+                                                  chat,
+                                                  message,
+                                                ),
+                                          onSelectVersion: (number) =>
+                                              state.selectMessageVersion(
+                                                message,
+                                                number,
+                                              ),
+                                          onShowVersions: () =>
+                                              showVersionsSheet(
+                                                context,
+                                                message: message,
+                                                onSelect: (number) =>
+                                                    state.selectMessageVersion(
+                                                      message,
+                                                      number,
+                                                    ),
+                                                onDelete: (number) =>
+                                                    state.deleteMessageVersion(
+                                                      message,
+                                                      number,
+                                                    ),
+                                              ),
+                                          onShowStats: message.hasStats
+                                              ? () => showGenerationStats(
+                                                  context,
+                                                  message: message,
+                                                  contextUsage: contextInfo,
+                                                )
+                                              : null,
+                                          onEdit: message.streaming
+                                              ? null
+                                              : () => _editMessage(
+                                                  state,
+                                                  chat,
+                                                  message,
+                                                ),
+                                          onCreateBranch: () => _createBranch(
                                             state,
                                             chat,
                                             message,
                                           ),
-                                    onCreateBranch: () =>
-                                        _createBranch(state, chat, message),
-                                    onResume:
-                                        message.hasPendingJob &&
-                                            !message.streaming &&
-                                            !view.sending
-                                        ? () =>
-                                              state.resumeMessage(chat, message)
-                                        : null,
+                                          onGenerateAnswer: canGenerateAnswer
+                                              ? () => state.generateAnswerFrom(
+                                                  chat,
+                                                  message,
+                                                )
+                                              : null,
+                                          needsAnswer:
+                                              messageIndex ==
+                                              chat.messages.length - 1,
+                                          onResume:
+                                              message.hasPendingJob &&
+                                                  !message.streaming &&
+                                                  !view.sending
+                                              ? () => state.resumeMessage(
+                                                  chat,
+                                                  message,
+                                                )
+                                              : null,
+                                        ),
+                                      );
+                                    },
                                   ),
-                                );
-                              },
+                                ),
+                        ),
+                        if (_showScrollButton && chat.messages.isNotEmpty)
+                          Positioned(
+                            right: 16,
+                            bottom: 12,
+                            child: FloatingActionButton.small(
+                              heroTag: null,
+                              onPressed: _scrollToBottom,
+                              tooltip: L10n.t('Вниз'),
+                              child: const Icon(
+                                Icons.keyboard_double_arrow_down_rounded,
+                              ),
                             ),
                           ),
+                      ],
+                    ),
                   ),
                   if (_pendingAttachments.isNotEmpty)
                     _PendingImages(

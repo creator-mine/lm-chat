@@ -21,6 +21,8 @@ class MessageBubble extends StatelessWidget {
     this.onResume,
     this.onContinue,
     this.onCreateBranch,
+    this.onGenerateAnswer,
+    this.needsAnswer = false,
     this.showRetry = false,
     this.showContinue = false,
     this.selectionMode = false,
@@ -53,6 +55,12 @@ class MessageBubble extends StatelessWidget {
 
   /// Creates a new chat from this message and all messages before it.
   final VoidCallback? onCreateBranch;
+
+  /// Generates or regenerates the answer after this user message.
+  final VoidCallback? onGenerateAnswer;
+
+  /// True when the next answer does not exist yet (a newly created branch).
+  final bool needsAnswer;
 
   final bool showRetry;
   final bool showContinue;
@@ -157,6 +165,16 @@ class MessageBubble extends StatelessWidget {
           child: Wrap(
             spacing: 2,
             children: [
+              if (onGenerateAnswer != null)
+                _BubbleAction(
+                  icon: needsAnswer
+                      ? Icons.auto_awesome_rounded
+                      : Icons.refresh_rounded,
+                  tooltip: needsAnswer
+                      ? L10n.t('Сгенерировать ответ')
+                      : L10n.t('Перегенерировать ответ'),
+                  onPressed: onGenerateAnswer!,
+                ),
               _BubbleAction(
                 icon: Icons.copy_rounded,
                 tooltip: L10n.t('Копировать'),
@@ -169,11 +187,19 @@ class MessageBubble extends StatelessWidget {
                     );
                 },
               ),
+              if (onCreateBranch != null)
+                _BubbleAction(
+                  icon: Icons.call_split_rounded,
+                  tooltip: L10n.t('Создать ветку'),
+                  onPressed: onCreateBranch!,
+                ),
               _UserMessageMenu(
                 hasContent: message.content.trim().isNotEmpty,
                 onEdit: onEdit,
                 onDelete: onDelete,
                 onCreateBranch: onCreateBranch,
+                onGenerateAnswer: onGenerateAnswer,
+                needsAnswer: needsAnswer,
               ),
             ],
           ),
@@ -351,6 +377,18 @@ class MessageBubble extends StatelessWidget {
                           );
                       },
                     ),
+                  if (showRetry && onRetry != null)
+                    _BubbleAction(
+                      icon: Icons.refresh_rounded,
+                      tooltip: L10n.t('Сгенерировать заново'),
+                      onPressed: onRetry!,
+                    ),
+                  if (onCreateBranch != null)
+                    _BubbleAction(
+                      icon: Icons.call_split_rounded,
+                      tooltip: L10n.t('Создать ветку'),
+                      onPressed: onCreateBranch!,
+                    ),
                   _MessageMenu(
                     message: message,
                     hasContent: hasContent,
@@ -435,12 +473,16 @@ class _UserMessageMenu extends StatelessWidget {
     this.onEdit,
     this.onDelete,
     this.onCreateBranch,
+    this.onGenerateAnswer,
+    this.needsAnswer = false,
   });
 
   final bool hasContent;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
   final VoidCallback? onCreateBranch;
+  final VoidCallback? onGenerateAnswer;
+  final bool needsAnswer;
 
   @override
   Widget build(BuildContext context) {
@@ -465,6 +507,21 @@ class _UserMessageMenu extends StatelessWidget {
         ),
       );
     }
+    if (onGenerateAnswer != null) {
+      items.add(
+        PopupMenuItem(
+          value: 'generate',
+          child: _MenuRow(
+            icon: needsAnswer
+                ? Icons.auto_awesome_rounded
+                : Icons.refresh_rounded,
+            label: needsAnswer
+                ? 'Сгенерировать ответ'
+                : 'Перегенерировать ответ',
+          ),
+        ),
+      );
+    }
     if (onDelete != null) {
       items.add(
         PopupMenuItem(
@@ -484,6 +541,7 @@ class _UserMessageMenu extends StatelessWidget {
       onSelected: (value) {
         if (value == 'edit') onEdit?.call();
         if (value == 'branch') onCreateBranch?.call();
+        if (value == 'generate') onGenerateAnswer?.call();
         if (value == 'delete') onDelete?.call();
       },
       itemBuilder: (_) => items,

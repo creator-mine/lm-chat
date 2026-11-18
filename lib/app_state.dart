@@ -130,9 +130,15 @@ class ContextUsage {
 const int _maxImportBytes = 32 * 1024 * 1024;
 
 class AppState extends ChangeNotifier with WidgetsBindingObserver {
-  AppState({LmClient? client, SecretStore? secretStore})
-    : _client = client ?? LmClient(),
-      _store = HistoryStore(secretStore: secretStore) {
+  AppState({
+    LmClient? client,
+    SecretStore? secretStore,
+    LmClient Function()? generationClientFactory,
+  }) : _client = client ?? LmClient(),
+       _store = HistoryStore(secretStore: secretStore),
+       _generation = GenerationController(
+         clientFactory: generationClientFactory,
+       ) {
     _store.onStatus = (message) {
       statusMessage = message;
       notifyListeners();
@@ -156,7 +162,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// Last known reachability per server. Missing means "not checked yet".
   final Map<String, bool> _serverOnline = {};
 
-  final GenerationController _generation = GenerationController();
+  final GenerationController _generation;
 
   late final SyncService sync = SyncService(
     buildBundle: _buildSyncBundle,
@@ -1955,13 +1961,30 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> regenerate() async {
     final chat = activeChat;
     if (chat == null || isGenerating(chat)) return;
+    final lastUser = chat.messages.lastIndexWhere((m) => m.role == 'user');
+    if (lastUser == -1) return;
+    await generateAnswerFrom(chat, chat.messages[lastUser]);
+  }
+
+  /// Generates or regenerates the answer that follows [userMessage].
+  ///
+  /// Used by the user-message actions: a branch created from a user message has
+  /// no answer yet, while a normal chat can regenerate the first answer. For
+  /// older exchanges the caller must create a branch instead, so later messages
+  /// are never silently discarded.
+  Future<void> generateAnswerFrom(
+    ChatSession chat,
+    ChatMessage userMessage,
+  ) async {
+    if (!userMessage.isUser || isGenerating(chat)) return;
     if (isDisconnected) {
       _rejectDisconnected();
       return;
     }
-
-    final lastUser = chat.messages.lastIndexWhere((m) => m.role == 'user');
-    if (lastUser == -1) return;
+    final index = chat.messages.indexWhere(
+      (message) => message.id == userMessage.id,
+    );
+    if (index < 0) return;
 
     final server = serverById(chat.serverId) ?? activeServer;
     if (server == null) {
@@ -1975,23 +1998,32 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
 
+    final next = index + 1 < chat.messages.length
+        ? chat.messages[index + 1]
+        : null;
     ChatMessage placeholder;
-    final hasAnswer =
-        chat.messages.length > lastUser + 1 &&
-        chat.messages.last.role == 'assistant';
-    if (hasAnswer) {
-      placeholder = chat.messages.last;
-      // Always regenerate the newest answer, even if an older version is on
-      // screen right now.
+    var isRegeneration = false;
+    if (next != null && next.role == 'assistant') {
+      if (index + 2 < chat.messages.length) {
+        statusMessage = L10n.t('Создайте ветку, чтобы изменить старый ответ');
+        notifyListeners();
+        return;
+      }
+      placeholder = next;
+      isRegeneration = true;
       placeholder.activeVersion = 0;
       placeholder.archiveCurrent(model: placeholder.model);
-    } else {
+    } else if (next == null) {
       placeholder = ChatMessage(
         id: newId(),
         role: 'assistant',
         model: chat.model,
       );
       chat.messages.add(placeholder);
+    } else {
+      // The next message is another user message: there is no answer to
+      // regenerate in this position.
+      return;
     }
 
     placeholder.streaming = true;
@@ -2000,7 +2032,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       chat: chat,
       server: server,
       placeholder: placeholder,
-      isRegeneration: true,
+      isRegeneration: isRegeneration,
     );
   }
 
