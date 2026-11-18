@@ -8,6 +8,7 @@ import 'app_state.dart';
 import 'models.dart';
 import 'screens/home_screen.dart';
 import 'screens/welcome_screen.dart';
+import 'sync/pairing_host.dart';
 import 'theme.dart';
 import 'updater.dart';
 import 'window_chrome.dart';
@@ -17,19 +18,22 @@ Future<void> main() async {
   final state = AppState();
   await state.init();
   final updates = UpdateService();
+  final navigatorKey = GlobalKey<NavigatorState>();
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: state),
         ChangeNotifierProvider.value(value: updates),
       ],
-      child: const LmChatApp(),
+      child: LmChatApp(navigatorKey: navigatorKey),
     ),
   );
 }
 
 class LmChatApp extends StatelessWidget {
-  const LmChatApp({super.key});
+  const LmChatApp({super.key, required this.navigatorKey});
+
+  final GlobalKey<NavigatorState> navigatorKey;
 
   @override
   Widget build(BuildContext context) {
@@ -53,6 +57,7 @@ class LmChatApp extends StatelessWidget {
     );
     return MaterialApp(
       title: 'LM Chat',
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       theme: buildTheme(
         Brightness.light,
@@ -82,7 +87,11 @@ class LmChatApp extends StatelessWidget {
           data: media.copyWith(
             textScaler: _AppTextScaler(media.textScaler, fontScale),
           ),
-          child: _TitleBarSync(child: child!),
+          child: SyncPairingHost(
+            service: context.read<AppState>().sync,
+            navigatorKey: navigatorKey,
+            child: _TitleBarSync(child: child!),
+          ),
         );
       },
       home: setupDone ? const HomeScreen() : const WelcomeScreen(),

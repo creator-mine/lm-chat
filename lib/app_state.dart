@@ -22,6 +22,10 @@ import 'models.dart';
 import 'profile.dart';
 import 'secret_store.dart';
 import 'settings_store.dart';
+import 'sync/bundle.dart';
+import 'sync/crypto.dart';
+import 'sync/merge.dart';
+import 'sync/service.dart';
 
 class ModelFetchResult {
   ModelFetchResult({this.models = const [], this.error});
@@ -150,6 +154,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   final Map<String, bool> _serverOnline = {};
 
   final GenerationController _generation = GenerationController();
+
+  late final SyncService sync = SyncService(
+    buildBundle: _buildSyncBundle,
+    applyBundle: _applySyncBundle,
+  );
 
   AppData get data => _store.data;
 
@@ -307,6 +316,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    sync.dispose();
     _store.dispose();
     _generation.dispose();
     _client.close();
@@ -319,6 +329,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         state == AppLifecycleState.hidden) {
       // Persist the partial answer immediately: if the process is killed while
       // frozen, the text received so far is not lost.
+      unawaited(sync.stopListener());
       _store.cancelScheduledSave();
       _saveNow().catchError((Object error) {
         statusMessage = L10n.tf('Не удалось сохранить: {error}', {
@@ -328,6 +339,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       });
     } else if (state == AppLifecycleState.resumed) {
       resumedTick++;
+      if (sync.enabled) unawaited(sync.startListener());
       // A bridge job may still be generating on the server after the network
       // dropped or the app was frozen. Re-attach the open chat; other chats
       // can be resumed explicitly with the button under the answer.
@@ -349,6 +361,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> init() async {
     await _store.load();
+    try {
+      await sync.init();
+    } catch (error) {
+      AppLog.instance.warning(
+        'Не удалось загрузить настройки синхронизации',
+        detail: '$error',
+      );
+    }
     await _loadCustomFont();
     data.activeServerId ??= data.servers.isNotEmpty
         ? data.servers.first.id
@@ -358,6 +378,43 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     notifyListeners();
     unawaited(_resumePendingJobs());
+    if (sync.enabled) unawaited(sync.startAtStartup());
+  }
+
+  Future<SyncBundle> _buildSyncBundle(SyncIdentity identity) async =>
+      SyncBundle.fromData(
+        data,
+        deviceId: identity.deviceId,
+        deviceName: identity.name,
+        excludeChatIds: data.chats
+            .where((chat) => isGenerating(chat))
+            .map((chat) => chat.id)
+            .toSet(),
+      );
+
+  Future<SyncMergeResult> _applySyncBundle(SyncBundle bundle) async {
+    if (bundle.deviceId == sync.deviceId) return const SyncMergeResult();
+    final result = mergeSyncBundle(
+      data: data,
+      remote: bundle,
+      localDeviceId: sync.deviceId,
+      busyChatIds: data.chats
+          .where((chat) => isGenerating(chat))
+          .map((chat) => chat.id)
+          .toSet(),
+    );
+    if (result.changed) {
+      if (result.serversAdded > 0) _bridgeApplied.clear();
+      _scheduleSave();
+      notifyListeners();
+      AppLog.instance.info(
+        'Синхронизация применена',
+        detail:
+            'чатов: +${result.chatsAdded} / ~${result.chatsUpdated}, '
+            'сообщений: +${result.messagesAdded} / ~${result.messagesMerged}',
+      );
+    }
+    return result;
   }
 
   /// Test hook: lets a test point the history at a temporary directory.

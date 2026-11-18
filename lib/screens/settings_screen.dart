@@ -18,6 +18,7 @@ import '../widgets/profile_sheet.dart';
 import '../widgets/prompt_library_sheet.dart';
 import '../widgets/update_banner.dart';
 import 'diagnostics_screen.dart';
+import 'sync_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -405,6 +406,21 @@ class SettingsScreen extends StatelessWidget {
                       onTap: () => _importProfile(context),
                     ),
                   ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              const _SectionHeader(title: 'Синхронизация по локальной сети'),
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.sync_rounded),
+                  title: const Text('Устройства и чаты'),
+                  subtitle: const Text(
+                    'Объединять чаты и серверы между устройствами в одной сети',
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => Navigator.of(
+                    context,
+                  ).push(MaterialPageRoute(builder: (_) => const SyncScreen())),
                 ),
               ),
               const SizedBox(height: 14),
