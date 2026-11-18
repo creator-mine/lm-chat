@@ -164,6 +164,7 @@ class HistoryStore {
   /// Returns true when at least one plaintext token was moved to the keystore.
   Future<bool> _loadSecrets() async {
     var migrated = false;
+    var fallbackCopied = false;
     for (final server in data.servers) {
       final stored = await _secretStore.read(server.id);
       if (!stored.isEmpty) {
@@ -186,9 +187,18 @@ class HistoryStore {
         );
         migrated = true;
       }
+      // Older builds allowed the plugin token to authenticate the relay. Keep
+      // existing relay setups working by copying it once, then use a dedicated
+      // relay token from now on.
+      if (server.hasRelay &&
+          server.relayToken.trim().isEmpty &&
+          server.pluginToken.trim().isNotEmpty) {
+        server.relayToken = server.pluginToken.trim();
+        fallbackCopied = true;
+      }
     }
-    _secretsDirty = false;
-    return migrated;
+    _secretsDirty = fallbackCopied;
+    return migrated || fallbackCopied;
   }
 
   Future<void> _syncSecretsIfNeeded() async {

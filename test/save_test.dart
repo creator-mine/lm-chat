@@ -212,6 +212,41 @@ void main() {
 
     expect(await target.readAsString(), future);
   });
+
+  test('legacy plugin token is copied to the relay token once', () async {
+    final dir = await Directory.systemTemp.createTemp('lm_chat_relay_');
+    addTearDown(() => dir.delete(recursive: true));
+    final target = File(
+      '${dir.path}${Platform.pathSeparator}lm_chat_data.json',
+    );
+    final server = ServerConfig(
+      id: 'server',
+      name: 'Relay',
+      baseUrl: 'http://192.168.1.5:1234',
+      relayUrl: 'https://relay.example.com',
+      relayDevice: 'home-pc',
+    );
+    await target.writeAsString(
+      jsonEncode({
+        'schemaVersion': AppData.currentSchemaVersion,
+        'servers': [server.toJson()],
+        'chats': <dynamic>[],
+      }),
+    );
+    final secrets = MemorySecretStore();
+    await secrets.write(
+      server.id,
+      const ServerSecrets(pluginToken: 'legacy-plugin-token'),
+    );
+
+    final state = AppState(secretStore: secrets);
+    state.dataFileOverride = () async => target;
+    await state.init();
+
+    expect(state.data.servers.single.relayToken, 'legacy-plugin-token');
+    final stored = await secrets.read(server.id);
+    expect(stored.relayToken, 'legacy-plugin-token');
+  });
 }
 
 class _UnavailableSecretStore implements SecretStore {
@@ -226,4 +261,13 @@ class _UnavailableSecretStore implements SecretStore {
 
   @override
   Future<void> delete(String serverId) async {}
+
+  @override
+  Future<String?> readSecret(String key) async => null;
+
+  @override
+  Future<void> writeSecret(String key, String value) async {}
+
+  @override
+  Future<void> deleteSecret(String key) async {}
 }

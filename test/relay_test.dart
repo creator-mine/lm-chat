@@ -46,10 +46,10 @@ void main() {
     expect(server.relayHeaders['X-Relay-Token'], 'relay-token-0123456789');
   });
 
-  test('relay token falls back to the plugin token', () {
+  test('relay token is not borrowed from the plugin token', () {
     final server = relayServer(relayToken: '');
-    expect(server.effectiveRelayToken, 'plugin-token-0123456789');
-    expect(server.relayHeaders['X-Relay-Token'], 'plugin-token-0123456789');
+    expect(server.effectiveRelayToken, isEmpty);
+    expect(server.relayHeaders.containsKey('X-Relay-Token'), isFalse);
   });
 
   test('a device id is encoded in the relay path', () {
@@ -68,6 +68,10 @@ void main() {
     );
     expect(
       relayServer(relayUrl: 'http://192.168.1.5:8787').securityError,
+      isNotNull,
+    );
+    expect(
+      relayServer(relayUrl: 'http://127.0.0.1:8787').securityError,
       isNull,
     );
   });

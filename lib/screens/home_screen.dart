@@ -912,64 +912,68 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               final message = chat
                                   .messages[chat.messages.length - 1 - index];
                               final isLast = index == 0;
-                              return MessageBubble(
-                                message: message,
-                                selectionMode: _selectionMode,
-                                selected: _selectedMessageIds.contains(
-                                  message.id,
-                                ),
-                                onToggleSelection: () =>
-                                    _toggleMessageSelection(message),
-                                onStartSelection: () =>
-                                    _startSelection(message),
-                                showRetry:
-                                    isLast &&
-                                    message.role == 'assistant' &&
-                                    message.viewingLatest &&
-                                    !message.streaming &&
-                                    !state.sending,
-                                onRetry: state.regenerate,
-                                showContinue:
-                                    isLast &&
-                                    message.role == 'assistant' &&
-                                    message.viewingLatest &&
-                                    !message.streaming &&
-                                    !message.hasPendingJob &&
-                                    !state.sending,
-                                onContinue: state.continueGeneration,
-                                onDelete: message.streaming
-                                    ? null
-                                    : () => _confirmDeleteMessage(
-                                        state,
-                                        chat,
-                                        message,
-                                      ),
-                                onSelectVersion: (number) =>
-                                    state.selectMessageVersion(message, number),
-                                onShowVersions: () => showVersionsSheet(
-                                  context,
+                              return RepaintBoundary(
+                                key: ValueKey(message.id),
+                                child: MessageBubble(
                                   message: message,
-                                  onSelect: (number) => state
+                                  selectionMode: _selectionMode,
+                                  selected: _selectedMessageIds.contains(
+                                    message.id,
+                                  ),
+                                  onToggleSelection: () =>
+                                      _toggleMessageSelection(message),
+                                  onStartSelection: () =>
+                                      _startSelection(message),
+                                  showRetry:
+                                      isLast &&
+                                      message.role == 'assistant' &&
+                                      message.viewingLatest &&
+                                      !message.streaming &&
+                                      !state.sending,
+                                  onRetry: state.regenerate,
+                                  showContinue:
+                                      isLast &&
+                                      message.role == 'assistant' &&
+                                      message.viewingLatest &&
+                                      !message.streaming &&
+                                      !message.hasPendingJob &&
+                                      !state.sending,
+                                  onContinue: state.continueGeneration,
+                                  onDelete: message.streaming
+                                      ? null
+                                      : () => _confirmDeleteMessage(
+                                          state,
+                                          chat,
+                                          message,
+                                        ),
+                                  onSelectVersion: (number) => state
                                       .selectMessageVersion(message, number),
-                                  onDelete: (number) => state
-                                      .deleteMessageVersion(message, number),
+                                  onShowVersions: () => showVersionsSheet(
+                                    context,
+                                    message: message,
+                                    onSelect: (number) => state
+                                        .selectMessageVersion(message, number),
+                                    onDelete: (number) => state
+                                        .deleteMessageVersion(message, number),
+                                  ),
+                                  onShowStats: message.hasStats
+                                      ? () => showGenerationStats(
+                                          context,
+                                          message: message,
+                                          contextUsage: contextInfo,
+                                        )
+                                      : null,
+                                  onEdit: message.streaming
+                                      ? null
+                                      : () =>
+                                            _editMessage(state, chat, message),
+                                  onResume:
+                                      message.hasPendingJob &&
+                                          !message.streaming &&
+                                          !state.sending
+                                      ? () => state.resumeMessage(chat, message)
+                                      : null,
                                 ),
-                                onShowStats: message.hasStats
-                                    ? () => showGenerationStats(
-                                        context,
-                                        message: message,
-                                        contextUsage: contextInfo,
-                                      )
-                                    : null,
-                                onEdit: message.streaming
-                                    ? null
-                                    : () => _editMessage(state, chat, message),
-                                onResume:
-                                    message.hasPendingJob &&
-                                        !message.streaming &&
-                                        !state.sending
-                                    ? () => state.resumeMessage(chat, message)
-                                    : null,
                               );
                             },
                           ),

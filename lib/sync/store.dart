@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
+import '../secret_store.dart';
 import 'crypto.dart';
 
 class SyncSettings {
@@ -20,10 +21,14 @@ class SyncSettings {
 }
 
 class SyncStore {
-  SyncStore({Future<Directory> Function()? directory})
-    : _directoryOverride = directory;
+  SyncStore({Future<Directory> Function()? directory, SecretStore? secretStore})
+    : _directoryOverride = directory,
+      _secretStore = secretStore ?? SecureSecretStore();
 
   final Future<Directory> Function()? _directoryOverride;
+  final SecretStore _secretStore;
+
+  static const String _identitySecretKey = 'sync.identity';
 
   late Directory directory;
   SyncIdentity? identity;
@@ -49,6 +54,34 @@ class SyncStore {
       } catch (_) {
         // A damaged identity is replaced on the next enable.
         identity = null;
+      }
+    }
+
+    // Prefer the platform keystore. An identity from an older build is moved
+    // out of the plaintext file on first load.
+    var secureIdentity = false;
+    try {
+      final raw = await _secretStore.readSecret(_identitySecretKey);
+      if (raw != null && raw.isNotEmpty) {
+        final json = jsonDecode(raw);
+        if (json is Map<String, dynamic>) {
+          final loaded = SyncIdentity.fromJson(json);
+          identity = loaded;
+          secureIdentity = true;
+        }
+      }
+    } catch (_) {
+      // No secure store available for this build/device.
+    }
+    if (!secureIdentity && identity != null) {
+      try {
+        await _secretStore.writeSecret(
+          _identitySecretKey,
+          jsonEncode(identity!.toJson()),
+        );
+        if (await _identityFile.exists()) await _identityFile.delete();
+      } catch (_) {
+        // Keep the file fallback when the keystore is unavailable.
       }
     }
     if (await _settingsFile.exists()) {
@@ -102,7 +135,14 @@ class SyncStore {
   Future<void> saveIdentity() async {
     final value = identity;
     if (value == null) return;
-    await _write(_identityFile, jsonEncode(value.toJson()));
+    final payload = jsonEncode(value.toJson());
+    try {
+      await _secretStore.writeSecret(_identitySecretKey, payload);
+      if (await _identityFile.exists()) await _identityFile.delete();
+    } catch (_) {
+      // Keep the file fallback when the keystore is unavailable.
+      await _write(_identityFile, payload);
+    }
   }
 
   Future<void> saveSettings() async {

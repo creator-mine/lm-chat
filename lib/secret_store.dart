@@ -32,6 +32,14 @@ abstract class SecretStore {
   Future<void> write(String serverId, ServerSecrets secrets);
 
   Future<void> delete(String serverId);
+
+  /// Raw key/value storage for non-server secrets (for example the sync
+  /// identity seed).
+  Future<String?> readSecret(String key);
+
+  Future<void> writeSecret(String key, String value);
+
+  Future<void> deleteSecret(String key);
 }
 
 class SecureSecretStore implements SecretStore {
@@ -44,6 +52,7 @@ class SecureSecretStore implements SecretStore {
   static String _bridgeToken(String id) => 'lm_chat.$id.bridgeToken';
   static String _pluginToken(String id) => 'lm_chat.$id.pluginToken';
   static String _relayToken(String id) => 'lm_chat.$id.relayToken';
+  static String _rawKey(String key) => 'lm_chat.$key';
 
   @override
   Future<bool> isAvailable() async {
@@ -116,12 +125,23 @@ class SecureSecretStore implements SecretStore {
     await storage.delete(key: _pluginToken(serverId));
     await storage.delete(key: _relayToken(serverId));
   }
+
+  @override
+  Future<String?> readSecret(String key) => storage.read(key: _rawKey(key));
+
+  @override
+  Future<void> writeSecret(String key, String value) =>
+      storage.write(key: _rawKey(key), value: value);
+
+  @override
+  Future<void> deleteSecret(String key) => storage.delete(key: _rawKey(key));
 }
 
 /// In-memory store used by tests. It keeps secrets for the lifetime of the
 /// process and never persists them.
 class MemorySecretStore implements SecretStore {
   final Map<String, ServerSecrets> _values = {};
+  final Map<String, String> _raw = {};
 
   @override
   Future<bool> isAvailable() async => true;
@@ -142,5 +162,18 @@ class MemorySecretStore implements SecretStore {
   @override
   Future<void> delete(String serverId) async {
     _values.remove(serverId);
+  }
+
+  @override
+  Future<String?> readSecret(String key) async => _raw[key];
+
+  @override
+  Future<void> writeSecret(String key, String value) async {
+    _raw[key] = value;
+  }
+
+  @override
+  Future<void> deleteSecret(String key) async {
+    _raw.remove(key);
   }
 }

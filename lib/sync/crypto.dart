@@ -9,6 +9,9 @@ const int syncProtocolVersion = 1;
 const String syncMagic = 'LMSYNC1';
 const int syncMaxBundleBytes = 64 * 1024 * 1024;
 
+/// Allowed clock difference between two devices during pairing/exchange.
+const Duration syncTimestampWindow = Duration(minutes: 5);
+
 class SyncException implements Exception {
   SyncException(this.message);
 

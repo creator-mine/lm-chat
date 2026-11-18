@@ -53,6 +53,8 @@ class RelayClient {
     if (server.relayDevice.trim().isEmpty) {
       throw RelayException('Укажите ID устройства relay.');
     }
+    final security = server.relaySecurityError;
+    if (security != null) throw RelayException(security);
     final headers = <String, String>{
       'Accept': 'application/json',
       ...server.relayHeaders,

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lm_chat/secret_store.dart';
 import 'package:lm_chat/sync/bundle.dart';
 import 'package:lm_chat/sync/crypto.dart';
 import 'package:lm_chat/sync/store.dart';
@@ -94,5 +95,27 @@ void main() {
   test('a gzip bomb in a sync bundle is rejected before it expands', () {
     final bomb = Uint8List.fromList(gzip.encode(Uint8List(70 * 1024 * 1024)));
     expect(() => SyncBundle.decode(bomb), throwsA(isA<SyncException>()));
+  });
+
+  test('the sync identity seed is kept in the secure store', () async {
+    final dir = await Directory.systemTemp.createTemp('lm_chat_sync_key_');
+    addTearDown(() => dir.delete(recursive: true));
+    final secrets = MemorySecretStore();
+    final store = SyncStore(directory: () async => dir, secretStore: secrets);
+    await store.load();
+    final identity = await store.ensureIdentity();
+
+    expect(
+      await secrets.readSecret('sync.identity'),
+      contains(identity.deviceId),
+    );
+    expect(File('${dir.path}/sync/identity.json').existsSync(), isFalse);
+
+    final reloaded = SyncStore(
+      directory: () async => dir,
+      secretStore: secrets,
+    );
+    await reloaded.load();
+    expect(reloaded.identity!.deviceId, identity.deviceId);
   });
 }

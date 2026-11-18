@@ -1149,7 +1149,7 @@ class SyncService extends ChangeNotifier implements SyncServerDelegate {
   bool _oldTimestamp(int millis) {
     if (millis <= 0) return true;
     final time = DateTime.fromMillisecondsSinceEpoch(millis);
-    return DateTime.now().difference(time).abs() > const Duration(minutes: 2);
+    return DateTime.now().difference(time).abs() > syncTimestampWindow;
   }
 
   void _prunePairings() {

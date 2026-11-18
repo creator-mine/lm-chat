@@ -439,12 +439,9 @@ class ServerConfig {
     return device.isEmpty ? base : '$base/d/${Uri.encodeComponent(device)}';
   }
 
-  /// Relay token, falling back to the plugin token so one secret can protect
-  /// the plugin, the bridge and the relay.
-  String get effectiveRelayToken {
-    final relay = relayToken.trim();
-    return relay.isNotEmpty ? relay : pluginToken.trim();
-  }
+  /// Relay token. It is intentionally not borrowed from the plugin token:
+  /// the relay and the plugin protect different services.
+  String get effectiveRelayToken => relayToken.trim();
 
   /// Headers that authenticate the request at the relay.
   Map<String, String> get relayHeaders {
@@ -532,7 +529,11 @@ class ServerConfig {
 
   /// Error for the plugin address only. Diagnostics must not send the plugin
   /// token over cleartext to a public host.
-  String? get pluginSecurityError => _securityErrorFor(effectivePluginUrl);
+  String? get pluginSecurityError {
+    final relay = relaySecurityError;
+    if (relay != null) return relay;
+    return _securityErrorFor(effectivePluginUrl);
+  }
 
   /// Default port of the bundled `lms_gpu_bridge.py` HTTP bridge.
   static const int defaultBridgePort = 1235;
@@ -623,10 +624,36 @@ class ServerConfig {
   }
 
   /// Error for the API address only.
-  String? get baseSecurityError => _securityErrorFor(normalizedBase);
+  String? get baseSecurityError {
+    final relay = relaySecurityError;
+    if (relay != null) return relay;
+    return _securityErrorFor(normalizedBase);
+  }
 
   /// Error for the bridge address only.
-  String? get bridgeSecurityError => _securityErrorFor(normalizedBridge);
+  String? get bridgeSecurityError {
+    final relay = relaySecurityError;
+    if (relay != null) return relay;
+    return _securityErrorFor(normalizedBridge);
+  }
+
+  /// A relay is reachable from the internet, so its token must not travel over
+  /// plain HTTP. Loopback is allowed for local development.
+  String? get relaySecurityError {
+    final value = normalizedRelay;
+    if (value.isEmpty) return null;
+    final uri = Uri.tryParse(value);
+    if (uri == null || uri.host.isEmpty) {
+      return 'Некорректный адрес relay.';
+    }
+    if (uri.scheme.toLowerCase() != 'http') return null;
+    final host = uri.host.toLowerCase();
+    if (host == 'localhost' || host == '127.0.0.1' || host == '::1') {
+      return null;
+    }
+    return 'Relay должен использовать HTTPS: токен не должен идти по сети '
+        'открыто. HTTP разрешён только для loopback.';
+  }
 
   /// Error that should block the next generation. A configured but disabled
   /// bridge does not block direct API requests.

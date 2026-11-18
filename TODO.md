@@ -42,38 +42,42 @@ Go-relay, Python-мостик, CI и релизный процесс.
       превращаются в `SyncException`. Тест с gzip-бомбой добавлен.
 - [x] **CI: Windows и Python.** Добавлены job `windows` (release-сборка) и
       `python` (self-tests мостика).
-- [ ] **CI: покрытие и закрепление actions.** Генерация покрытия и порог 50%
-      добавлены. Осталось закрепить `ci.yml`/`secret-scan.yml` по commit SHA,
-      добавить release-сборку APK с проверкой подписи и поднять порог.
-      CodeQL сейчас анализирует только Python — добавить Go (Dart CodeQL не
-      поддерживает).
+- [ ] **CI: release и CodeQL.** Покрытие и порог 50% добавлены, actions в
+      `ci.yml`/`relay.yml`/`secret-scan.yml` закреплены по SHA. Осталось
+      добавить release-сборку APK с проверкой подписи и CodeQL для Go
+      (Dart CodeQL не поддерживает).
 - [x] **Троттлинг UI при стриминге.** `_generate` уведомляет UI не чаще
-      ~20 раз в секунду (50 мс).
+      ~20 раз в секунду (50 мс), пузыри обёрнуты в `RepaintBoundary`.
 - [ ] **Лента без лишних перестроек.** `HomeScreen` всё ещё смотрит весь
-      `AppState`; вынести ленту в `Selector`/локальный notifier и добавить
-      `RepaintBoundary`.
-- [ ] **Развести relay-токен и plugin-токен.** `effectiveRelayToken`
-      подставляет `pluginToken`; для relay требовать HTTPS (кроме loopback) и
-      явно предупреждать о fallback.
-- [ ] **Sync seed в защищённое хранилище.** `identity.json` хранит приватный
-      seed обычным файлом; перенести в Keystore/Credential Manager.
+      `AppState`; вынести ленту в `Selector`/локальный notifier.
+- [x] **Развести relay-токен и plugin-токен.** `effectiveRelayToken` больше не
+      подставляет plugin-токен; старые профили получают его копию один раз при
+      загрузке. Relay требует HTTPS (HTTP только для loopback), настройки
+      предупреждают о разделении токенов.
+- [x] **Sync seed в защищённое хранилище.** `SyncStore` хранит seed через
+      `SecretStore`; старый `identity.json` переносится и удаляется, файл
+      остаётся только fallback при недоступном Keystore.
 - [ ] **Разбить `AppState` и экраны.** `app_state.dart` — 2 650 строк,
       `home_screen.dart` — 2 336, `settings_screen.dart` — 1 826,
       `message_bubble.dart` — 1 266. Выделить сервисы/виджеты, иначе сложно
       тестировать и менять.
-- [ ] **Тесты UI-пробелов.** 0%: `model_settings_sheet`, `version_sheet`,
-      `server_import_dialog`; <3%: `diagnostics_screen`, `sync_screen`,
-      `model_picker`. Добавить widget-тесты ключевых сценариев.
+- [x] **Тесты UI-пробелов.** Добавлены тесты импорта share-кода
+      (`server_import_dialog_test`) и выбора модели (`model_picker_test`).
+- [ ] **Остальные UI-тесты.** Нет тестов для `model_settings_sheet`,
+      `version_sheet`, `diagnostics_screen`, `sync_screen`.
 
 **P3 — гигиена**
 
 - [x] **`newId()`:** использует `Random.secure()` вместо `Random()`.
-- [ ] **Окно timestamp синхронизации ±2 минуты** ломает обмен при
-      рассинхронизации часов; увеличить/сделать настраиваемым.
+- [x] **Окно timestamp синхронизации** увеличено до 5 минут
+      (`syncTimestampWindow`).
 - [ ] **Локализация:** английский в основном fallback на русский; добавить
       тест полноты переводов.
-- [ ] **Зависимости:** 11 транзитивных обновлений; `file_picker` 13.3.3 →
-      13.4.0, `cupertino_icons` 1.0.9 → 2.0.0; обновлять по одному с тестами.
+- [x] **Зависимости:** проверено обновление `file_picker`. Версия 13.4.0
+      подтягивает `android_file_picker` 2.2.0, который не компилируется
+      (Unresolved reference `FilePickerDelegate`), поэтому оставлены
+      `file_picker` 13.3.2 и override `android_file_picker` 2.1.5. Мажорные
+      `cupertino_icons` 2.0.0 и `qr` 4.x пока не обновлялись.
 - [ ] **`tools/lm-computer-plugin/node_modules`** (82 МБ) не попадает в git,
       но засоряет рабочую копию; чистить перед сборкой/архивом.
 

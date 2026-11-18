@@ -1434,7 +1434,7 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
     if (server.hasRelay && server.effectiveRelayToken.isEmpty) {
       setState(() {
         _testOk = false;
-        _testMessage = L10n.t('Укажите токен relay или токен плагина');
+        _testMessage = L10n.t('Укажите токен relay');
       });
       return;
     }
@@ -1660,9 +1660,23 @@ class _ServerEditDialogState extends State<ServerEditDialog> {
                 obscureText: true,
                 decoration: InputDecoration(
                   labelText: L10n.t('Токен relay'),
-                  helperText: L10n.t('Пусто — использовать токен плагина.'),
+                  helperText: L10n.t(
+                    'Отдельный токен relay. Не подставляется из токена плагина.',
+                  ),
                 ),
               ),
+              if (_relayToken.text.trim().isEmpty &&
+                  _pluginToken.text.trim().isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    L10n.t(
+                      'Токен плагина больше не используется для relay. '
+                      'Укажите отдельный токен relay.',
+                    ),
+                    style: TextStyle(fontSize: 11.5, color: scheme.error),
+                  ),
+                ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: Text(L10n.t('Сквозное шифрование (E2E)')),

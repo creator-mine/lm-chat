@@ -201,11 +201,11 @@ class L10n {
     'ID устройства': 'Device ID',
     'Ключ из devices в relay.json.': 'The key from devices in relay.json.',
     'Токен relay': 'Relay token',
-    'Пусто — использовать токен плагина.':
-        'Leave empty to use the plugin token.',
+    'Отдельный токен relay. Не подставляется из токена плагина.':
+        'A dedicated relay token. The plugin token is not used.',
     'Укажите ID устройства relay': 'Set the relay device ID',
-    'Укажите токен relay или токен плагина':
-        'Set the relay token or the plugin token',
+    'Укажите токен relay': 'Set the relay token',
+    'Токен плагина больше не используется для relay. Укажите отдельный токен relay.': 'The plugin token is no longer used for the relay. Enter a dedicated relay token.',
     'Сквозное шифрование (E2E)': 'End-to-end encryption (E2E)',
     'Relay не видит пути, заголовки и содержимое.':
         'The relay cannot see paths, headers or content.',
