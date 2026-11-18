@@ -937,5 +937,16 @@ class L10n {
     'Системный': 'System',
     'Русский': 'Russian',
     'English': 'English',
+    'Файл слишком большой для импорта (максимум 32 МБ)':
+        'File is too large to import (maximum 32 MB)',
+    'Файл профиля слишком большой (максимум 32 МБ)':
+        'Profile file is too large (maximum 32 MB)',
+    'История создана более новой версией LM Chat: {version}. Обновите приложение.':
+        'The history was created by a newer LM Chat version: {version}. '
+        'Update the app.',
+    'Выбрать всё': 'Select all',
+    'Забыть': 'Forget',
+    'Сначала выберите модель': 'Select a model first',
+    'выкл': 'off',
   };
 }

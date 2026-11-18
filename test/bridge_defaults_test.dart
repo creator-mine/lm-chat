@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lm_chat/models.dart';
-import 'package:lm_chat/screens/settings_screen.dart';
+import 'package:lm_chat/widgets/server_edit_dialog.dart';
 
 void main() {
   test('bridge address uses the server host and the default bridge port', () {

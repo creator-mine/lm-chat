@@ -52,6 +52,18 @@ jobs:
       - name: Build debug APK
         run: flutter build apk --debug
 
+      - name: Build release APK with the CI debug key
+        env:
+          LMCHAT_ALLOW_DEBUG_SIGNING: "1"
+        run: flutter build apk --release
+
+      - name: Verify release APK signature
+        run: |
+          apksigner=$(find "${ANDROID_HOME:-$ANDROID_SDK_ROOT}/build-tools" \
+            -name apksigner -type f | sort | tail -1)
+          "$apksigner" verify --print-certs \
+            build/app/outputs/flutter-apk/app-release.apk
+
   windows:
     runs-on: windows-latest
     steps:

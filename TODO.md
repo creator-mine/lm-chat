@@ -42,10 +42,9 @@ Go-relay, Python-мостик, CI и релизный процесс.
       превращаются в `SyncException`. Тест с gzip-бомбой добавлен.
 - [x] **CI: Windows и Python.** Добавлены job `windows` (release-сборка) и
       `python` (self-tests мостика).
-- [ ] **CI: release и CodeQL.** Покрытие и порог 50% добавлены, actions в
-      `ci.yml`/`relay.yml`/`secret-scan.yml` закреплены по SHA. Осталось
-      добавить release-сборку APK с проверкой подписи и CodeQL для Go
-      (Dart CodeQL не поддерживает).
+- [x] **CI: release и CodeQL.** Добавлены release-сборка APK с проверкой
+      подписи, порог покрытия 50%, job CodeQL для Go и закрепление actions по
+      SHA.
 - [x] **Троттлинг UI при стриминге.** `_generate` уведомляет UI не чаще
       ~20 раз в секунду (50 мс), пузыри обёрнуты в `RepaintBoundary`.
 - [ ] **Лента без лишних перестроек.** `HomeScreen` всё ещё смотрит весь
@@ -57,34 +56,28 @@ Go-relay, Python-мостик, CI и релизный процесс.
 - [x] **Sync seed в защищённое хранилище.** `SyncStore` хранит seed через
       `SecretStore`; старый `identity.json` переносится и удаляется, файл
       остаётся только fallback при недоступном Keystore.
-- [ ] **Разбить `AppState` и экраны.** `app_state.dart` — 2 650 строк,
-      `home_screen.dart` — 2 336, `settings_screen.dart` — 1 826,
-      `message_bubble.dart` — 1 266. Выделить сервисы/виджеты, иначе сложно
-      тестировать и менять.
-- [x] **Тесты UI-пробелов.** Добавлены тесты импорта share-кода
-      (`server_import_dialog_test`) и выбора модели (`model_picker_test`).
-- [ ] **Остальные UI-тесты.** Нет тестов для `model_settings_sheet`,
-      `version_sheet`, `diagnostics_screen`, `sync_screen`.
+- [ ] **Разбить `AppState` и экраны.** `app_state.dart` уменьшен с 2 650 до
+      ~1 834 строк: импорт/экспорт вынесен в `app_state_transfer.dart`, диалог
+      сервера — в `widgets/server_edit_dialog.dart`. Остались `home_screen.dart`
+      (2 340), `settings_screen.dart` (1 190) и `message_bubble.dart` (1 266).
+- [x] **Тесты UI-пробелов.** Добавлены тесты импорта share-кода, выбора
+      модели, настроек запуска, вариантов ответа, диагностики и экрана
+      синхронизации.
+- [x] **Остальные UI-тесты.** `model_settings_sheet`, `version_sheet`,
+      `diagnostics_screen`, `sync_screen` покрыты widget-тестами.
 
 **P3 — гигиена**
 
 - [x] **`newId()`:** использует `Random.secure()` вместо `Random()`.
 - [x] **Окно timestamp синхронизации** увеличено до 5 минут
       (`syncTimestampWindow`).
-- [ ] **Локализация:** английский в основном fallback на русский; добавить
-      тест полноты переводов.
-- [x] **Зависимости:** проверено обновление `file_picker`. Версия 13.4.0
-      подтягивает `android_file_picker` 2.2.0, который не компилируется
-      (Unresolved reference `FilePickerDelegate`), поэтому оставлены
-      `file_picker` 13.3.2 и override `android_file_picker` 2.1.5. Мажорные
-      `cupertino_icons` 2.0.0 и `qr` 4.x пока не обновлялись.
+- [x] **Локализация:** добавлен тест полноты `test/l10n_completeness_test.dart`;
+      все русские `L10n`-литералы имеют английский перевод.
+- [x] **Зависимости:** `cupertino_icons` удалён (не использовался),
+      `file_picker` 13.3.2 + override `android_file_picker` 2.1.5. `qr` 4.x
+      заблокирован `qr_flutter 4.1.0` (требует `qr ^3`).
 - [ ] **`tools/lm-computer-plugin/node_modules`** (82 МБ) не попадает в git,
       но засоряет рабочую копию; чистить перед сборкой/архивом.
-
-- [ ] **Подпись Windows-установщика.** Сейчас EXE не подписан, поэтому
-      автообновление Windows его отклоняет. Нужен постоянный сертификат,
-      `LMCHAT_SIGN_CERT` + `LMCHAT_WINDOWS_PUBLISHER` и проверка обновления с
-      предыдущей версии.
 
 ### P1 — безопасность и выпуск
 
