@@ -559,6 +559,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   /// Enters message multi-select mode. A long press selects the message it
   /// started from; the chat menu starts with an empty selection.
+  void _createBranch(AppState state, ChatSession chat, ChatMessage message) {
+    state.createBranch(chat, message);
+    setState(() {
+      _selectionMode = false;
+      _selectionChatId = null;
+      _selectedMessageIds.clear();
+    });
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(L10n.t('Ветка создана'))));
+  }
+
   void _startSelection([ChatMessage? message]) {
     final chat = context.read<AppState>().activeChat;
     if (chat == null || chat.messages.isEmpty) return;
@@ -1014,6 +1026,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                             chat,
                                             message,
                                           ),
+                                    onCreateBranch: () =>
+                                        _createBranch(state, chat, message),
                                     onResume:
                                         message.hasPendingJob &&
                                             !message.streaming &&

@@ -20,6 +20,7 @@ class MessageBubble extends StatelessWidget {
     this.onEdit,
     this.onResume,
     this.onContinue,
+    this.onCreateBranch,
     this.showRetry = false,
     this.showContinue = false,
     this.selectionMode = false,
@@ -49,6 +50,9 @@ class MessageBubble extends StatelessWidget {
 
   /// Appends more text to a finished answer.
   final VoidCallback? onContinue;
+
+  /// Creates a new chat from this message and all messages before it.
+  final VoidCallback? onCreateBranch;
 
   final bool showRetry;
   final bool showContinue;
@@ -169,6 +173,7 @@ class MessageBubble extends StatelessWidget {
                 hasContent: message.content.trim().isNotEmpty,
                 onEdit: onEdit,
                 onDelete: onDelete,
+                onCreateBranch: onCreateBranch,
               ),
             ],
           ),
@@ -356,6 +361,7 @@ class MessageBubble extends StatelessWidget {
                     onContinue: onContinue,
                     onEdit: onEdit,
                     onDelete: onDelete,
+                    onCreateBranch: onCreateBranch,
                   ),
                 ],
               ),
@@ -428,11 +434,13 @@ class _UserMessageMenu extends StatelessWidget {
     required this.hasContent,
     this.onEdit,
     this.onDelete,
+    this.onCreateBranch,
   });
 
   final bool hasContent;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
+  final VoidCallback? onCreateBranch;
 
   @override
   Widget build(BuildContext context) {
@@ -443,6 +451,17 @@ class _UserMessageMenu extends StatelessWidget {
         const PopupMenuItem(
           value: 'edit',
           child: _MenuRow(icon: Icons.edit_outlined, label: 'Редактировать'),
+        ),
+      );
+    }
+    if (onCreateBranch != null) {
+      items.add(
+        const PopupMenuItem(
+          value: 'branch',
+          child: _MenuRow(
+            icon: Icons.call_split_rounded,
+            label: 'Создать ветку',
+          ),
         ),
       );
     }
@@ -464,6 +483,7 @@ class _UserMessageMenu extends StatelessWidget {
       icon: const Icon(Icons.more_horiz_rounded, size: 19),
       onSelected: (value) {
         if (value == 'edit') onEdit?.call();
+        if (value == 'branch') onCreateBranch?.call();
         if (value == 'delete') onDelete?.call();
       },
       itemBuilder: (_) => items,
@@ -482,6 +502,7 @@ class _MessageMenu extends StatelessWidget {
     this.onContinue,
     this.onEdit,
     this.onDelete,
+    this.onCreateBranch,
   });
 
   final ChatMessage message;
@@ -493,6 +514,7 @@ class _MessageMenu extends StatelessWidget {
   final VoidCallback? onContinue;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
+  final VoidCallback? onCreateBranch;
 
   @override
   Widget build(BuildContext context) {
@@ -522,6 +544,9 @@ class _MessageMenu extends StatelessWidget {
     if (hasContent && onEdit != null) {
       add('edit', Icons.edit_outlined, 'Редактировать ответ');
     }
+    if (onCreateBranch != null) {
+      add('branch', Icons.call_split_rounded, 'Создать ветку');
+    }
     if (items.isNotEmpty && onDelete != null) {
       items.add(const PopupMenuDivider());
     }
@@ -548,6 +573,8 @@ class _MessageMenu extends StatelessWidget {
             onRetry?.call();
           case 'edit':
             onEdit?.call();
+          case 'branch':
+            onCreateBranch?.call();
           case 'delete':
             onDelete?.call();
         }

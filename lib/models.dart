@@ -1571,6 +1571,9 @@ class ChatSession {
     this.launch = const LaunchSettings(),
     this.pinned = false,
     this.archived = false,
+    this.parentChatId,
+    this.branchFromMessageId,
+    this.branchFromVersion,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) : messages = messages ?? [],
@@ -1598,6 +1601,17 @@ class ChatSession {
   LaunchSettings launch;
   bool pinned;
   bool archived;
+
+  /// Chat this one was forked from. Null for a root chat.
+  final String? parentChatId;
+
+  /// Message the branch starts at.
+  final String? branchFromMessageId;
+
+  /// 1-based answer version selected when the branch was created from an
+  /// assistant message. Null for user messages and root chats.
+  final int? branchFromVersion;
+
   final DateTime createdAt;
   DateTime updatedAt;
 
@@ -1618,6 +1632,9 @@ class ChatSession {
     launch: launch,
     pinned: pinned,
     archived: archived,
+    parentChatId: parentChatId,
+    branchFromMessageId: branchFromMessageId,
+    branchFromVersion: branchFromVersion,
     createdAt: createdAt,
     updatedAt: updatedAt,
   );
@@ -1638,6 +1655,11 @@ class ChatSession {
     'launch': launch.toJson(),
     if (pinned) 'pinned': true,
     if (archived) 'archived': true,
+    if (parentChatId != null && parentChatId!.isNotEmpty)
+      'parentChatId': parentChatId,
+    if (branchFromMessageId != null && branchFromMessageId!.isNotEmpty)
+      'branchFromMessageId': branchFromMessageId,
+    if (branchFromVersion != null) 'branchFromVersion': branchFromVersion,
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
   };
@@ -1673,6 +1695,14 @@ class ChatSession {
         : const LaunchSettings(),
     pinned: json['pinned'] as bool? ?? false,
     archived: json['archived'] as bool? ?? false,
+    parentChatId: (json['parentChatId'] as String?)?.trim().isEmpty == true
+        ? null
+        : json['parentChatId'] as String?,
+    branchFromMessageId:
+        (json['branchFromMessageId'] as String?)?.trim().isEmpty == true
+        ? null
+        : json['branchFromMessageId'] as String?,
+    branchFromVersion: (json['branchFromVersion'] as num?)?.toInt(),
     createdAt: DateTime.tryParse(json['createdAt'] as String? ?? ''),
     updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? ''),
   );
@@ -1759,7 +1789,7 @@ class SchemaTooNewException implements Exception {
 
 class AppData {
   /// Increment when the on-disk shape changes in a way that needs migration.
-  static const int currentSchemaVersion = 15;
+  static const int currentSchemaVersion = 16;
 
   /// Validates the on-disk schema and stamps it with the current version.
   ///

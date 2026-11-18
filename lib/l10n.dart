@@ -985,5 +985,9 @@ class L10n {
             'сопряжении сравните 8 цифр на двух экранах.':
         'Both apps must be open on the same network. On the first '
         'pairing, compare the 8 digits on both screens.',
+    'Ветка: {title}': 'Branch: {title}',
+    'Создать ветку': 'Create branch',
+    'Ветка создана': 'Branch created',
+    'Открыть исходный чат': 'Open source chat',
   };
 }

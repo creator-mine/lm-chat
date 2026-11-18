@@ -689,6 +689,68 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
+  /// Creates a new chat from the messages up to [from] (inclusive).
+  ///
+  /// The source chat is never mutated. Branch metadata points at the immediate
+  /// parent, so branches of branches form a flat list with a parent chain.
+  ChatSession createBranch(ChatSession source, ChatMessage from) {
+    final index = source.messages.indexWhere(
+      (message) => message.id == from.id,
+    );
+    if (index < 0) {
+      throw ArgumentError.value(from.id, 'from', 'Message is not in the chat');
+    }
+    final displayedVersion = !from.isUser ? from.displayedVersionNumber : null;
+    final messages = <ChatMessage>[];
+    for (var i = 0; i <= index; i++) {
+      final copy = ChatMessage.fromJson(source.messages[i].toJson())
+        ..jobId = null
+        ..jobServerId = null
+        ..jobSeq = 0
+        ..streaming = false
+        ..status = null;
+      if (i == index && displayedVersion != null) {
+        copy.activeVersion = displayedVersion == copy.versionCount
+            ? 0
+            : displayedVersion;
+      }
+      messages.add(copy);
+    }
+
+    final branch = ChatSession(
+      id: newId(),
+      title: L10n.tf('Ветка: {title}', {'title': source.title}),
+      serverId: source.serverId,
+      model: source.model,
+      messages: messages,
+      temperature: source.temperature,
+      topP: source.topP,
+      topK: source.topK,
+      repeatPenalty: source.repeatPenalty,
+      maxTokens: source.maxTokens,
+      systemPrompt: source.systemPrompt,
+      responseFormat: source.responseFormat,
+      launch: source.launch,
+      parentChatId: source.id,
+      branchFromMessageId: from.id,
+      branchFromVersion: displayedVersion,
+    );
+    data.chats.add(branch);
+    activeChat = branch;
+    if (source.serverId.isNotEmpty && !isDisconnected) {
+      data.activeServerId = source.serverId;
+    }
+    _scheduleSave();
+    notifyListeners();
+    AppLog.instance.info(
+      'Создана ветка',
+      detail:
+          'чат ${source.id}, сообщение ${from.id}, '
+          'вариант ${displayedVersion ?? '-'}',
+    );
+    return branch;
+  }
+
   void renameChat(ChatSession chat, String title) {
     chat.title = title.trim().isEmpty ? 'Новый чат' : title.trim();
     chat.updatedAt = DateTime.now();

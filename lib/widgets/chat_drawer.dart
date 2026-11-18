@@ -359,6 +359,13 @@ class ChatListState extends State<ChatList> {
 
   Future<void> _showActions(ChatSession chat) async {
     final state = context.read<AppState>();
+    ChatSession? parent;
+    for (final candidate in state.chats) {
+      if (candidate.id == chat.parentChatId) {
+        parent = candidate;
+        break;
+      }
+    }
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -402,6 +409,15 @@ class ChatListState extends State<ChatList> {
                 widget.onRenameChat(chat);
               },
             ),
+            if (parent != null)
+              ListTile(
+                leading: const Icon(Icons.call_split_rounded),
+                title: const Text('Открыть исходный чат'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  state.selectChat(parent!);
+                },
+              ),
             ListTile(
               leading: Icon(
                 Icons.delete_outline_rounded,
@@ -635,8 +651,14 @@ class ChatTile extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (chat.pinned || generating) ...[
+                if (chat.pinned || generating || chat.parentChatId != null) ...[
                   const SizedBox(width: 6),
+                  if (chat.parentChatId != null)
+                    Icon(
+                      Icons.call_split_rounded,
+                      size: 14,
+                      color: scheme.tertiary,
+                    ),
                   if (chat.pinned)
                     Icon(
                       Icons.push_pin_rounded,
