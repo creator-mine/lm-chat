@@ -6,6 +6,7 @@
 - [LM-Studio](https://github.com/Spe4naz/lm-chat/wiki/LM-Studio)
 - [Bridge](https://github.com/Spe4naz/lm-chat/wiki/Bridge)
 - [Синхронизация](https://github.com/Spe4naz/lm-chat/wiki/Sync)
+- [Ветки диалога](https://github.com/Spe4naz/lm-chat/wiki/Branches)
 - [Поделиться сервером](https://github.com/Spe4naz/lm-chat/wiki/Share)
 - [Удалённый доступ](https://github.com/Spe4naz/lm-chat/wiki/Remote)
 - [MCP-инструменты](https://github.com/Spe4naz/lm-chat/wiki/MCP)
