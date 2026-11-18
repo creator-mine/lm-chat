@@ -122,10 +122,30 @@ systemctl --user daemon-reload
 systemctl --user enable --now lm-relay-agent
 ```
 
-На Windows агент запускается как обычный `agent.exe -config agent.json`;
-для автозапуска используйте `sc create` или Планировщик заданий.
+На Windows агент запускается как обычный `agent.exe -config agent.json`.
+Для автозапуска при входе пользователя есть готовый скрипт (Планировщик
+заданий, без прав администратора):
+
+```powershell
+cd tools\lm-relay
+.\deploy\windows\install-agent.ps1 `
+  -AgentPath .\agent.exe `
+  -ConfigPath "$env:USERPROFILE\.config\lm-computer\relay-agent.json"
+```
+
+Удалить задачу: `.\deploy\windows\uninstall-agent.ps1`. Задача работает в
+сеансе пользователя — так же, как LM Studio.
 
 ## Проверка
+
+Быстрый smoke-тест через nginx/relay:
+
+```bash
+RELAY=https://lm.example.com TOKEN=...access_token... DEVICE=home-pc \
+  bash tools/lm-relay/smoke.sh
+```
+
+С `MODEL=...` скрипт дополнительно проверяет потоковый чат. Ручные запросы:
 
 ```bash
 export RELAY=https://lm.example.com

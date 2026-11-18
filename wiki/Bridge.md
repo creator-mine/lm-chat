@@ -38,6 +38,11 @@ curl -X POST http://192.168.1.50:1235/load \
   -d '{"model":"google/gemma-3n-e4b","gpu":"max","context_length":8192}'
 ```
 
+Через relay мостик доступен по тому же публичному origin:
+`https://relay.example.com/d/<device>/health`, `/load`, `/unload`, `/ps`,
+`/chat`. Отдельный порт наружу не открывается; токен relay передаётся в
+`X-Relay-Token`, а мостик получает свой `Authorization` от агента.
+
 Самопроверка без LM Studio:
 
 ```bash

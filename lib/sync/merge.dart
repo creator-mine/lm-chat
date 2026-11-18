@@ -182,7 +182,10 @@ _ChatMerge _mergeChat(ChatSession local, ChatSession remote) {
   for (final remoteMessage in remote.messages) {
     final existing = localById[remoteMessage.id];
     if (existing == null) {
-      final copied = _copyMessage(remoteMessage, attachments: const []);
+      final copied = _copyMessage(
+        remoteMessage,
+        attachments: remoteMessage.attachments,
+      );
       local.messages.add(copied);
       localById[copied.id] = copied;
       added++;
@@ -202,7 +205,9 @@ _ChatMerge _mergeChat(ChatSession local, ChatSession remote) {
     if (remoteWins) {
       final winner = _copyMessage(
         remoteMessage,
-        attachments: existing.attachments,
+        attachments: existing.attachments.isNotEmpty
+            ? existing.attachments
+            : remoteMessage.attachments,
       );
       _addLoserVersion(winner, existing);
       _mergeVersions(winner, existing);

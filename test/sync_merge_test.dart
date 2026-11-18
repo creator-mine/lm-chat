@@ -268,7 +268,7 @@ void main() {
     expect(local.chats.single.messages, hasLength(2));
   });
 
-  test('bundle omits secrets, attachments and chats with a pending job', () {
+  test('bundle keeps attachments but omits secrets and pending jobs', () {
     final data = AppData(
       servers: [server('s1', 'http://192.168.1.5:1234')],
       chats: [
@@ -314,7 +314,9 @@ void main() {
     expect(serverJson.containsKey('relayToken'), isFalse);
     final chatJson = (json['chats'] as List).single as Map;
     final messageJson = (chatJson['messages'] as List).single as Map;
-    expect(messageJson.containsKey('attachments'), isFalse);
+    expect(messageJson.containsKey('attachments'), isTrue);
+    final attachment = (messageJson['attachments'] as List).single as Map;
+    expect(attachment['data'], 'AAAA');
     expect(messageJson.containsKey('jobId'), isFalse);
   });
 
@@ -434,5 +436,54 @@ void main() {
     );
     expect(result.changed, isFalse);
     expect(local.chats, hasLength(1));
+  });
+
+  test('image attachments survive the bundle and merge', () {
+    final local = AppData(
+      servers: [server('s1', 'http://192.168.1.5:1234')],
+      chats: <ChatSession>[],
+    );
+    final attachment = ChatAttachment(
+      id: 'image-1',
+      mimeType: 'image/png',
+      data: 'aGVsbG8=',
+      name: 'hello.png',
+    );
+    final remoteData = AppData(
+      servers: [server('s1', 'http://192.168.1.5:1234')],
+      chats: [
+        chat(
+          id: 'c1',
+          serverId: 's1',
+          messages: [
+            message(
+              'm1',
+              'look',
+              DateTime.utc(2026, 1, 1),
+              attachments: [attachment],
+            ),
+          ],
+          updatedAt: DateTime.utc(2026, 1, 1),
+        ),
+      ],
+    );
+    final bundle = SyncBundle.decode(
+      SyncBundle.fromData(
+        remoteData,
+        deviceId: 'remote',
+        deviceName: 'Remote',
+      ).encode(),
+    );
+
+    final result = mergeSyncBundle(
+      data: local,
+      remote: bundle,
+      localDeviceId: 'local',
+    );
+
+    expect(result.chatsAdded, 1);
+    final copied = local.chats.single.messages.single.attachments.single;
+    expect(copied.data, 'aGVsbG8=');
+    expect(copied.mimeType, 'image/png');
   });
 }

@@ -948,5 +948,42 @@ class L10n {
     'Забыть': 'Forget',
     'Сначала выберите модель': 'Select a model first',
     'выкл': 'off',
+    'Имя устройства': 'Device name',
+    'Найденные устройства': 'Found devices',
+    'Ввести адрес': 'Enter an address',
+    'Добавить по адресу': 'Add by address',
+    'Забыть устройство?': 'Forget device?',
+    '«{name}» больше не сможет синхронизироваться с этим устройством '
+            'без повторного сопряжения.':
+        '«{name}» will no longer be able to sync with this device '
+        'without pairing again.',
+    'Адрес этого устройства': 'This device address',
+    'Сначала включите синхронизацию.': 'Enable sync first.',
+    'Введите этот адрес на втором устройстве:':
+        'Enter this address on the other device:',
+    'Синхронизация': 'Synchronization',
+    'Синхронизация по локальной сети': 'LAN synchronization',
+    'Чаты и серверы между устройствами в одной сети':
+        'Chats and servers between devices on the same network',
+    'Автосинхронизация при старте': 'Sync automatically on startup',
+    'Сопряжённые устройства': 'Paired devices',
+    'Пока никого. Нажмите «Найти устройства» на обоих устройствах '
+            'и сравните 8 цифр.':
+        'Nobody yet. Tap "Find devices" on both devices and compare '
+        'the 8 digits.',
+    'Найти устройства': 'Find devices',
+    'По адресу': 'By address',
+    'Синхронизировать': 'Sync',
+    'Что синхронизируется': 'What is synced',
+    'Только чаты и серверы. Без API-токенов, шаблонов и оформления. '
+            'Вложения переносятся. Удаления не переносятся: удалённый на '
+            'одном устройстве чат вернётся, если он есть на другом.':
+        'Only chats and servers. No API tokens, templates or appearance. '
+        'Attachments are transferred. Deletions are not transferred: a chat '
+        'deleted on one device returns if it exists on another.',
+    'Оба приложения должны быть открыты в одной сети. При первом '
+            'сопряжении сравните 8 цифр на двух экранах.':
+        'Both apps must be open on the same network. On the first '
+        'pairing, compare the 8 digits on both screens.',
   };
 }

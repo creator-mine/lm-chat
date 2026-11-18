@@ -8,8 +8,8 @@ import 'crypto.dart';
 
 /// Portable snapshot exchanged between devices.
 ///
-/// Only chats and servers are included. Attachments, prompt templates,
-/// appearance and all credentials stay on the device.
+/// Chats (including image attachments) and servers are included. Prompt
+/// templates, appearance and all credentials stay on the device.
 class SyncBundle {
   SyncBundle({
     required this.deviceId,
@@ -72,7 +72,6 @@ class SyncBundle {
         message.remove('jobId');
         message.remove('jobServerId');
         message.remove('jobSeq');
-        message.remove('attachments');
       }
     }
     return json;
@@ -130,7 +129,6 @@ class SyncBundle {
             message.remove('jobId');
             message.remove('jobServerId');
             message.remove('jobSeq');
-            message.remove('attachments');
           }
         }
         // Parse once to validate and normalise timestamps/defaults.

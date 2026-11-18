@@ -213,8 +213,11 @@ class _SyncScreenState extends State<SyncScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Забыть устройство?'),
         content: Text(
-          '«${peer.name}» больше не сможет синхронизироваться с этим '
-          'устройством без повторного сопряжения.',
+          L10n.tf(
+            '«{name}» больше не сможет синхронизироваться с этим '
+            'устройством без повторного сопряжения.',
+            {'name': peer.name},
+          ),
         ),
         actions: [
           TextButton(
@@ -462,10 +465,10 @@ class _SyncScreenState extends State<SyncScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Только чаты и серверы. Без API-токенов, шаблонов, '
-                      'оформления и вложений. Удаления не переносятся: '
-                      'удалённый на одном устройстве чат вернётся, если он '
-                      'есть на другом.',
+                      'Только чаты и серверы. Без API-токенов, шаблонов и '
+                      'оформления. Вложения переносятся. Удаления не '
+                      'переносятся: удалённый на одном устройстве чат вернётся, '
+                      'если он есть на другом.',
                       style: TextStyle(
                         fontSize: 12,
                         color: scheme.onSurfaceVariant,
