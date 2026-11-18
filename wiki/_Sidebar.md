@@ -5,6 +5,8 @@
 - [Updating](https://github.com/Spe4naz/lm-chat/wiki/Updating)
 - [LM-Studio](https://github.com/Spe4naz/lm-chat/wiki/LM-Studio)
 - [Bridge](https://github.com/Spe4naz/lm-chat/wiki/Bridge)
+- [Синхронизация](https://github.com/Spe4naz/lm-chat/wiki/Sync)
+- [Удалённый доступ](https://github.com/Spe4naz/lm-chat/wiki/Remote)
 - [MCP-инструменты](https://github.com/Spe4naz/lm-chat/wiki/MCP)
 - [FAQ](https://github.com/Spe4naz/lm-chat/wiki/FAQ)
 - [Troubleshooting](https://github.com/Spe4naz/lm-chat/wiki/Troubleshooting)
