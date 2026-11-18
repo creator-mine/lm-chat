@@ -171,6 +171,17 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   String? statusMessage;
   String? _lastModel;
 
+  /// Monotonic counter for widgets that need to repaint while the active chat
+  /// streams. The home screen selects only stable fields, so the message list
+  /// watches this instead of rebuild the whole scaffold on every chunk.
+  int revision = 0;
+
+  @override
+  void notifyListeners() {
+    revision++;
+    super.notifyListeners();
+  }
+
   /// Incremented when the app comes back from the background, so the chat can
   /// scroll to the newest text.
   int resumedTick = 0;

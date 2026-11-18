@@ -47,8 +47,9 @@ Go-relay, Python-мостик, CI и релизный процесс.
       SHA.
 - [x] **Троттлинг UI при стриминге.** `_generate` уведомляет UI не чаще
       ~20 раз в секунду (50 мс), пузыри обёрнуты в `RepaintBoundary`.
-- [ ] **Лента без лишних перестроек.** `HomeScreen` всё ещё смотрит весь
-      `AppState`; вынести ленту в `Selector`/локальный notifier.
+- [x] **Лента без лишних перестроек.** `HomeScreen` больше не смотрит весь
+      `AppState`: стабильные поля выбираются через `context.select`, а список
+      сообщений — через `Selector` по `AppState.revision`.
 - [x] **Развести relay-токен и plugin-токен.** `effectiveRelayToken` больше не
       подставляет plugin-токен; старые профили получают его копию один раз при
       загрузке. Relay требует HTTPS (HTTP только для loopback), настройки
@@ -56,10 +57,11 @@ Go-relay, Python-мостик, CI и релизный процесс.
 - [x] **Sync seed в защищённое хранилище.** `SyncStore` хранит seed через
       `SecretStore`; старый `identity.json` переносится и удаляется, файл
       остаётся только fallback при недоступном Keystore.
-- [ ] **Разбить `AppState` и экраны.** `app_state.dart` уменьшен с 2 650 до
-      ~1 834 строк: импорт/экспорт вынесен в `app_state_transfer.dart`, диалог
-      сервера — в `widgets/server_edit_dialog.dart`. Остались `home_screen.dart`
-      (2 340), `settings_screen.dart` (1 190) и `message_bubble.dart` (1 266).
+- [x] **Разбить `AppState` и экраны.** `app_state.dart` уменьшен с 2 650 до
+      ~1 843 строк (импорт/экспорт — `app_state_transfer.dart`), диалог
+      сервера — `widgets/server_edit_dialog.dart`, список чатов и drawer —
+      `widgets/chat_drawer.dart`; `home_screen.dart` — 1 738 строк. Дальше
+      можно выделить composer и ленту в отдельные файлы.
 - [x] **Тесты UI-пробелов.** Добавлены тесты импорта share-кода, выбора
       модели, настроек запуска, вариантов ответа, диагностики и экрана
       синхронизации.

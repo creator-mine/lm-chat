@@ -12,9 +12,9 @@ import '../l10n_text.dart';
 import '../models.dart';
 import '../theme.dart';
 import '../voice_input.dart';
+import '../widgets/chat_drawer.dart';
 import '../widgets/context_indicator.dart';
 import '../widgets/generation_stats_sheet.dart';
-import '../widgets/import_preview_sheet.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/model_picker.dart';
 import '../widgets/model_settings_sheet.dart';
@@ -34,7 +34,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final _input = TextEditingController();
   final _scroll = ScrollController();
   final _scaffoldKey = GlobalKey<ScaffoldState>();
-  final _chatListKey = GlobalKey<_ChatListState>();
+  final _chatListKey = GlobalKey<ChatListState>();
   late final bool _shortcutsEnabled =
       !kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.windows ||
@@ -694,8 +694,44 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<AppState>();
-    final chat = state.activeChat;
+    final state = context.read<AppState>();
+    final view = context
+        .select<
+          AppState,
+          ({
+            ChatSession? chat,
+            String title,
+            String model,
+            int messageCount,
+            bool sending,
+            bool offline,
+            bool checking,
+            String? status,
+            bool sidebarCollapsed,
+            double sidebarWidth,
+            bool responseFormatText,
+            bool canAttach,
+          })
+        >((state) {
+          final chat = state.activeChat;
+          return (
+            chat: chat,
+            title: chat?.title ?? '',
+            model: chat?.model ?? '',
+            messageCount: chat?.messages.length ?? 0,
+            sending: state.sending,
+            offline: state.isOffline,
+            checking: state.checkingConnection,
+            status: state.statusMessage,
+            sidebarCollapsed: state.data.sidebarCollapsed,
+            sidebarWidth: state.data.sidebarWidth,
+            responseFormatText: chat?.responseFormat.isText ?? true,
+            canAttach: chat == null
+                ? true
+                : state.modelInfo(chat.serverId, chat.model)?.vision ?? true,
+          );
+        });
+    final chat = view.chat;
     final contextInfo = chat == null ? null : state.contextUsage(chat);
     final scheme = Theme.of(context).colorScheme;
 
@@ -706,9 +742,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _selectedMessageIds.clear();
     }
 
-    if (state.statusMessage != null && state.statusMessage != _lastStatus) {
-      _lastStatus = state.statusMessage;
-      final message = state.statusMessage!;
+    if (view.status != null && view.status != _lastStatus) {
+      _lastStatus = view.status;
+      final message = view.status!;
       state.statusMessage = null;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -724,7 +760,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final appBar = _selectionMode && chat != null
         ? _selectionAppBar(state, chat, _selectedMessages(chat))
         : AppBar(
-            leading: wide && state.data.sidebarCollapsed
+            leading: wide && view.sidebarCollapsed
                 ? IconButton(
                     onPressed: () => state.setSidebarCollapsed(false),
                     icon: const Icon(Icons.chevron_right_rounded),
@@ -885,9 +921,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               child: Column(
                 children: [
                   const UpdateBanner(),
-                  if (state.isOffline)
+                  if (view.offline)
                     _OfflineBanner(
-                      checking: state.checkingConnection,
+                      checking: view.checking,
                       onRetry: state.reconnect,
                     ),
                   Expanded(
@@ -901,81 +937,94 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               );
                             },
                           )
-                        : ListView.builder(
-                            controller: _scroll,
-                            reverse: true,
-                            padding: compact
-                                ? const EdgeInsets.fromLTRB(16, 4, 14, 8)
-                                : const EdgeInsets.fromLTRB(16, 8, 14, 14),
-                            itemCount: chat.messages.length,
-                            itemBuilder: (context, index) {
-                              final message = chat
-                                  .messages[chat.messages.length - 1 - index];
-                              final isLast = index == 0;
-                              return RepaintBoundary(
-                                key: ValueKey(message.id),
-                                child: MessageBubble(
-                                  message: message,
-                                  selectionMode: _selectionMode,
-                                  selected: _selectedMessageIds.contains(
-                                    message.id,
-                                  ),
-                                  onToggleSelection: () =>
-                                      _toggleMessageSelection(message),
-                                  onStartSelection: () =>
-                                      _startSelection(message),
-                                  showRetry:
-                                      isLast &&
-                                      message.role == 'assistant' &&
-                                      message.viewingLatest &&
-                                      !message.streaming &&
-                                      !state.sending,
-                                  onRetry: state.regenerate,
-                                  showContinue:
-                                      isLast &&
-                                      message.role == 'assistant' &&
-                                      message.viewingLatest &&
-                                      !message.streaming &&
-                                      !message.hasPendingJob &&
-                                      !state.sending,
-                                  onContinue: state.continueGeneration,
-                                  onDelete: message.streaming
-                                      ? null
-                                      : () => _confirmDeleteMessage(
-                                          state,
-                                          chat,
-                                          message,
-                                        ),
-                                  onSelectVersion: (number) => state
-                                      .selectMessageVersion(message, number),
-                                  onShowVersions: () => showVersionsSheet(
-                                    context,
+                        : Selector<AppState, int>(
+                            selector: (_, state) => state.revision,
+                            builder: (context, _, _) => ListView.builder(
+                              controller: _scroll,
+                              reverse: true,
+                              padding: compact
+                                  ? const EdgeInsets.fromLTRB(16, 4, 14, 8)
+                                  : const EdgeInsets.fromLTRB(16, 8, 14, 14),
+                              itemCount: chat.messages.length,
+                              itemBuilder: (context, index) {
+                                final message = chat
+                                    .messages[chat.messages.length - 1 - index];
+                                final isLast = index == 0;
+                                return RepaintBoundary(
+                                  key: ValueKey(message.id),
+                                  child: MessageBubble(
                                     message: message,
-                                    onSelect: (number) => state
+                                    selectionMode: _selectionMode,
+                                    selected: _selectedMessageIds.contains(
+                                      message.id,
+                                    ),
+                                    onToggleSelection: () =>
+                                        _toggleMessageSelection(message),
+                                    onStartSelection: () =>
+                                        _startSelection(message),
+                                    showRetry:
+                                        isLast &&
+                                        message.role == 'assistant' &&
+                                        message.viewingLatest &&
+                                        !message.streaming &&
+                                        !view.sending,
+                                    onRetry: state.regenerate,
+                                    showContinue:
+                                        isLast &&
+                                        message.role == 'assistant' &&
+                                        message.viewingLatest &&
+                                        !message.streaming &&
+                                        !message.hasPendingJob &&
+                                        !view.sending,
+                                    onContinue: state.continueGeneration,
+                                    onDelete: message.streaming
+                                        ? null
+                                        : () => _confirmDeleteMessage(
+                                            state,
+                                            chat,
+                                            message,
+                                          ),
+                                    onSelectVersion: (number) => state
                                         .selectMessageVersion(message, number),
-                                    onDelete: (number) => state
-                                        .deleteMessageVersion(message, number),
+                                    onShowVersions: () => showVersionsSheet(
+                                      context,
+                                      message: message,
+                                      onSelect: (number) =>
+                                          state.selectMessageVersion(
+                                            message,
+                                            number,
+                                          ),
+                                      onDelete: (number) =>
+                                          state.deleteMessageVersion(
+                                            message,
+                                            number,
+                                          ),
+                                    ),
+                                    onShowStats: message.hasStats
+                                        ? () => showGenerationStats(
+                                            context,
+                                            message: message,
+                                            contextUsage: contextInfo,
+                                          )
+                                        : null,
+                                    onEdit: message.streaming
+                                        ? null
+                                        : () => _editMessage(
+                                            state,
+                                            chat,
+                                            message,
+                                          ),
+                                    onResume:
+                                        message.hasPendingJob &&
+                                            !message.streaming &&
+                                            !view.sending
+                                        ? () =>
+                                              state.resumeMessage(chat, message)
+                                        : null,
                                   ),
-                                  onShowStats: message.hasStats
-                                      ? () => showGenerationStats(
-                                          context,
-                                          message: message,
-                                          contextUsage: contextInfo,
-                                        )
-                                      : null,
-                                  onEdit: message.streaming
-                                      ? null
-                                      : () =>
-                                            _editMessage(state, chat, message),
-                                  onResume:
-                                      message.hasPendingJob &&
-                                          !message.streaming &&
-                                          !state.sending
-                                      ? () => state.resumeMessage(chat, message)
-                                      : null,
-                                ),
-                              );
-                            },
+                                );
+                              },
+                            ),
                           ),
                   ),
                   if (_pendingAttachments.isNotEmpty)
@@ -985,7 +1034,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         () => _pendingAttachments.remove(attachment),
                       ),
                     ),
-                  if (!chat.responseFormat.isText)
+                  if (!view.responseFormatText)
                     _ResponseFormatBadge(
                       format: chat.responseFormat,
                       onTap: () => showChatParams(context),
@@ -999,14 +1048,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ),
                   _Composer(
                     controller: _input,
-                    sending: state.sending,
+                    sending: view.sending,
                     onSend: _send,
                     onStop: state.stop,
                     onAttach: _pickImages,
                     picking: _pickingImages,
-                    canAttach:
-                        state.modelInfo(chat.serverId, chat.model)?.vision ??
-                        true,
+                    canAttach: view.canAttach,
                     showVoice:
                         !kIsWeb &&
                         (defaultTargetPlatform == TargetPlatform.android ||
@@ -1022,15 +1069,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           );
 
     if (wide) {
-      final width = state.data.sidebarWidth.clamp(240.0, 480.0);
+      final width = view.sidebarWidth.clamp(240.0, 480.0);
       return Scaffold(
         key: _scaffoldKey,
         body: Row(
           children: [
-            if (!state.data.sidebarCollapsed) ...[
+            if (!view.sidebarCollapsed) ...[
               SizedBox(
                 width: width,
-                child: _AppDrawer(
+                child: AppDrawer(
                   chatListKey: _chatListKey,
                   onNewChat: () => _newChat(closeDrawer: false),
                   onDeleteChat: _confirmDelete,
@@ -1040,7 +1087,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   closeOnSelect: false,
                 ),
               ),
-              _SidebarResizer(
+              SidebarResizer(
                 key: const ValueKey('sidebar-resizer'),
                 onDrag: (delta) => state.setSidebarWidth(width + delta),
                 onReset: () => state.setSidebarWidth(320),
@@ -1056,7 +1103,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     return Scaffold(
       key: _scaffoldKey,
-      drawer: _AppDrawer(
+      drawer: AppDrawer(
         chatListKey: _chatListKey,
         onNewChat: () => _newChat(closeDrawer: true),
         onDeleteChat: _confirmDelete,
@@ -1777,679 +1824,4 @@ class _SuggestionCard extends StatelessWidget {
       ),
     );
   }
-}
-
-class _SidebarResizer extends StatelessWidget {
-  const _SidebarResizer({
-    super.key,
-    required this.onDrag,
-    required this.onReset,
-  });
-
-  final ValueChanged<double> onDrag;
-  final VoidCallback onReset;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return MouseRegion(
-      cursor: SystemMouseCursors.resizeLeftRight,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onHorizontalDragUpdate: (details) => onDrag(details.delta.dx),
-        onDoubleTap: onReset,
-        child: Tooltip(
-          message: L10n.t('Изменить ширину списка чатов'),
-          child: SizedBox(
-            width: 8,
-            height: double.infinity,
-            child: Center(
-              child: Container(
-                width: 1,
-                color: scheme.outlineVariant.withValues(alpha: 0.6),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AppDrawer extends StatelessWidget {
-  const _AppDrawer({
-    required this.onNewChat,
-    required this.onDeleteChat,
-    required this.onRenameChat,
-    this.onCollapse,
-    this.chatListKey,
-    this.embedded = false,
-    this.closeOnSelect = true,
-  });
-
-  final VoidCallback onNewChat;
-  final Future<void> Function(ChatSession) onDeleteChat;
-  final Future<void> Function(ChatSession) onRenameChat;
-
-  /// Hides the permanent desktop sidebar. Null in drawer mode.
-  final VoidCallback? onCollapse;
-  final Key? chatListKey;
-
-  /// Desktop sidebar: no drawer animation, always visible.
-  final bool embedded;
-  final bool closeOnSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    final state = context.watch<AppState>();
-    final scheme = Theme.of(context).colorScheme;
-    final server = state.activeServer;
-    final colors = AppColors.of(context);
-
-    final content = SafeArea(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 10),
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    gradient: LinearGradient(
-                      colors: [scheme.primary, scheme.tertiary],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
-                  child: Icon(
-                    Icons.forum_rounded,
-                    size: 21,
-                    color: scheme.onPrimary,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'LM Chat',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      Row(
-                        children: [
-                          Container(
-                            width: 6,
-                            height: 6,
-                            decoration: BoxDecoration(
-                              color: server == null
-                                  ? scheme.outline
-                                  : state.isOffline
-                                  ? scheme.error
-                                  : colors.success,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 5),
-                          Expanded(
-                            child: Text(
-                              server == null
-                                  ? (state.servers.isEmpty
-                                        ? 'нет сервера'
-                                        : 'не подключено')
-                                  : serverLabel(server),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                color: scheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                if (onCollapse != null)
-                  IconButton(
-                    onPressed: onCollapse,
-                    icon: const Icon(Icons.menu_open_rounded, size: 20),
-                    tooltip: L10n.t('Скрыть список чатов'),
-                    visualDensity: VisualDensity.compact,
-                  ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: FilledButton.icon(
-              onPressed: onNewChat,
-              icon: const Icon(Icons.add_rounded, size: 20),
-              label: const Text('Новый чат'),
-              style: FilledButton.styleFrom(
-                minimumSize: Size.fromHeight(
-                  AppDensity.isCompact(context) ? 42 : 46,
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            child: _ChatList(
-              key: chatListKey,
-              onDeleteChat: onDeleteChat,
-              onRenameChat: onRenameChat,
-              closeOnSelect: closeOnSelect,
-            ),
-          ),
-          const Divider(height: 1),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-            child: Column(
-              children: [
-                ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.dns_outlined, size: 20),
-                  title: const Text(
-                    'Серверы и настройки',
-                    style: TextStyle(fontSize: 13.5),
-                  ),
-                  subtitle: Text(
-                    L10n.tf('{count} сервер(ов)', {
-                      'count': state.servers.length,
-                    }),
-                    style: const TextStyle(fontSize: 11),
-                  ),
-                  onTap: () {
-                    if (!embedded) Navigator.of(context).pop();
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                    );
-                  },
-                ),
-                ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.file_open_outlined, size: 20),
-                  title: const Text(
-                    'Импорт истории',
-                    style: TextStyle(fontSize: 13.5),
-                  ),
-                  subtitle: const Text(
-                    'Объединить с текущими чатами из JSON',
-                    style: TextStyle(fontSize: 11),
-                  ),
-                  onTap: () async {
-                    if (!embedded) Navigator.of(context).pop();
-                    final preview = await state.pickImportPreview();
-                    if (!context.mounted) return;
-                    if (preview.cancelled) return;
-                    if (!preview.ok) {
-                      ScaffoldMessenger.of(context)
-                        ..hideCurrentSnackBar()
-                        ..showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              preview.error ?? 'Не удалось прочитать файл',
-                            ),
-                          ),
-                        );
-                      return;
-                    }
-                    final selected = await showImportPreview(context, preview);
-                    if (!context.mounted ||
-                        selected == null ||
-                        selected.isEmpty) {
-                      return;
-                    }
-                    final result = state.importPreview(
-                      preview,
-                      selectedChats: selected,
-                    );
-                    final extra = [
-                      if (result.servers > 0)
-                        L10n.tf('серверов: {count}', {'count': result.servers}),
-                      if (result.templates > 0)
-                        L10n.tf('промптов: {count}', {
-                          'count': result.templates,
-                        }),
-                    ].join(', ');
-                    final message =
-                        result.error ??
-                        '${L10n.tf('Импортировано чатов: {count}', {'count': result.chats})}'
-                            '${extra.isEmpty ? '' : ', $extra'}';
-                    final messenger = ScaffoldMessenger.of(context);
-                    messenger
-                      ..hideCurrentSnackBar()
-                      ..showSnackBar(SnackBar(content: Text(message)));
-                  },
-                ),
-                ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.ios_share_rounded, size: 20),
-                  title: const Text(
-                    'Экспорт всех чатов',
-                    style: TextStyle(fontSize: 13.5),
-                  ),
-                  onTap: () {
-                    if (!embedded) Navigator.of(context).pop();
-                    state.exportChats();
-                  },
-                ),
-                ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.description_outlined, size: 20),
-                  title: const Text(
-                    'Все чаты в Markdown',
-                    style: TextStyle(fontSize: 13.5),
-                  ),
-                  onTap: () {
-                    if (!embedded) Navigator.of(context).pop();
-                    state.exportAllChatsMarkdown();
-                  },
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (embedded) {
-      return Material(
-        color: colors.sidebar,
-        child: Container(
-          decoration: BoxDecoration(
-            border: Border(
-              right: BorderSide(
-                color: scheme.outlineVariant.withValues(alpha: 0.6),
-              ),
-            ),
-          ),
-          child: content,
-        ),
-      );
-    }
-    return Drawer(child: content);
-  }
-}
-
-class _ChatList extends StatefulWidget {
-  const _ChatList({
-    super.key,
-    required this.onDeleteChat,
-    required this.onRenameChat,
-    this.closeOnSelect = true,
-  });
-
-  final Future<void> Function(ChatSession) onDeleteChat;
-  final Future<void> Function(ChatSession) onRenameChat;
-  final bool closeOnSelect;
-
-  @override
-  State<_ChatList> createState() => _ChatListState();
-}
-
-class _ChatListState extends State<_ChatList> {
-  final _search = TextEditingController();
-  final _searchFocus = FocusNode();
-  String _query = '';
-  bool _showArchived = false;
-
-  void focusSearch() {
-    _searchFocus.requestFocus();
-    _search.selection = TextSelection(
-      baseOffset: 0,
-      extentOffset: _search.text.length,
-    );
-  }
-
-  @override
-  void dispose() {
-    _searchFocus.dispose();
-    _search.dispose();
-    super.dispose();
-  }
-
-  List<ChatSession> _filtered(List<ChatSession> chats) {
-    final query = _query.trim().toLowerCase();
-    if (query.isEmpty) return chats;
-    return chats.where((chat) {
-      if (chat.title.toLowerCase().contains(query)) return true;
-      if (chat.model.toLowerCase().contains(query)) return true;
-      return chat.messages.any(
-        (message) => message.displayContent.toLowerCase().contains(query),
-      );
-    }).toList();
-  }
-
-  Future<void> _showActions(ChatSession chat) async {
-    final state = context.read<AppState>();
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      useSafeArea: true,
-      constraints: const BoxConstraints(maxWidth: 460),
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: Icon(
-                chat.pinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
-              ),
-              title: Text(chat.pinned ? 'Открепить' : 'Закрепить'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                state.togglePinned(chat);
-              },
-            ),
-            ListTile(
-              leading: Icon(
-                chat.archived
-                    ? Icons.unarchive_rounded
-                    : Icons.archive_outlined,
-              ),
-              title: Text(chat.archived ? 'Вернуть из архива' : 'Архивировать'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                if (chat.archived) {
-                  state.unarchiveChat(chat);
-                } else {
-                  state.archiveChat(chat);
-                }
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.edit_rounded),
-              title: const Text('Переименовать'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                widget.onRenameChat(chat);
-              },
-            ),
-            ListTile(
-              leading: Icon(
-                Icons.delete_outline_rounded,
-                color: Theme.of(sheetContext).colorScheme.error,
-              ),
-              title: Text(
-                'Удалить',
-                style: TextStyle(
-                  color: Theme.of(sheetContext).colorScheme.error,
-                ),
-              ),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                widget.onDeleteChat(chat);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final state = context.watch<AppState>();
-    final scheme = Theme.of(context).colorScheme;
-    final source = _showArchived ? state.archivedChats : state.activeChats;
-    final chats = _filtered(source);
-
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
-          child: TextField(
-            key: const ValueKey('chat-search-field'),
-            controller: _search,
-            focusNode: _searchFocus,
-            onChanged: (value) => setState(() => _query = value),
-            decoration: InputDecoration(
-              hintText: L10n.t('Поиск по чатам и сообщениям'),
-              prefixIcon: const Icon(Icons.search_rounded, size: 19),
-              isDense: true,
-              suffixIcon: _query.isEmpty
-                  ? null
-                  : IconButton(
-                      onPressed: () {
-                        _search.clear();
-                        setState(() => _query = '');
-                      },
-                      icon: const Icon(Icons.close_rounded, size: 18),
-                      tooltip: L10n.t('Очистить'),
-                    ),
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(22, 8, 8, 2),
-          child: Row(
-            children: [
-              Text(
-                _showArchived ? 'АРХИВ' : 'ЧАТЫ',
-                style: TextStyle(
-                  fontSize: 10.5,
-                  letterSpacing: 0.9,
-                  fontWeight: FontWeight.w700,
-                  color: scheme.onSurfaceVariant,
-                ),
-              ),
-              const Spacer(),
-              TextButton(
-                onPressed: () => setState(() {
-                  _showArchived = !_showArchived;
-                  _query = '';
-                  _search.clear();
-                }),
-                style: TextButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                ),
-                child: Text(
-                  _showArchived
-                      ? L10n.t('К активным')
-                      : L10n.tf('Архив ({count})', {
-                          'count': state.archivedChats.length,
-                        }),
-                  style: const TextStyle(fontSize: 11.5),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: chats.isEmpty
-              ? Center(
-                  child: Text(
-                    _query.isNotEmpty
-                        ? 'Ничего не найдено'
-                        : _showArchived
-                        ? 'Архив пуст'
-                        : 'Пока нет чатов',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
-                  ),
-                  itemCount: chats.length,
-                  itemBuilder: (context, index) {
-                    final chat = chats[index];
-                    return _ChatTile(
-                      chat: chat,
-                      selected: chat.id == state.activeChat?.id,
-                      generating: state.isGenerating(chat),
-                      onTap: () {
-                        state.selectChat(chat);
-                        if (widget.closeOnSelect) {
-                          Navigator.of(context).maybePop();
-                        }
-                      },
-                      onLongPress: () => _showActions(chat),
-                    );
-                  },
-                ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ChatTile extends StatelessWidget {
-  const _ChatTile({
-    required this.chat,
-    required this.selected,
-    required this.generating,
-    required this.onTap,
-    required this.onLongPress,
-  });
-
-  final ChatSession chat;
-  final bool selected;
-  final bool generating;
-  final VoidCallback onTap;
-  final VoidCallback onLongPress;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final preview = _chatPreview(chat);
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 2),
-      child: Material(
-        color: selected
-            ? scheme.primary.withValues(alpha: 0.10)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: onTap,
-          onLongPress: onLongPress,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
-            child: Row(
-              children: [
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? scheme.primary.withValues(alpha: 0.16)
-                        : scheme.surfaceContainer,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    chat.archived
-                        ? Icons.inventory_2_outlined
-                        : Icons.chat_bubble_outline_rounded,
-                    size: 17,
-                    color: selected ? scheme.primary : scheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              chat.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 13.5,
-                                fontWeight: selected
-                                    ? FontWeight.w600
-                                    : FontWeight.w500,
-                                color: scheme.onSurface,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            _formatChatTime(chat.updatedAt),
-                            style: TextStyle(
-                              fontSize: 10.5,
-                              color: scheme.onSurfaceVariant.withValues(
-                                alpha: 0.8,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        preview,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          color: scheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (chat.pinned || generating) ...[
-                  const SizedBox(width: 6),
-                  if (chat.pinned)
-                    Icon(
-                      Icons.push_pin_rounded,
-                      size: 14,
-                      color: scheme.primary,
-                    ),
-                  if (generating) ...[
-                    if (chat.pinned) const SizedBox(width: 5),
-                    const SizedBox(
-                      width: 13,
-                      height: 13,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  ],
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-String _chatPreview(ChatSession chat) {
-  if (chat.messages.isEmpty) {
-    return chat.model.isEmpty ? 'Нет сообщений' : chat.model;
-  }
-  final last = chat.messages.last;
-  final text = last.displayContent.trim().replaceAll(RegExp(r'\s+'), ' ');
-  if (text.isNotEmpty) return text;
-  if (last.attachments.isNotEmpty) return L10n.t('Изображение');
-  return chat.model.isEmpty ? 'Нет сообщений' : chat.model;
-}
-
-String _formatChatTime(DateTime date) {
-  final local = date.toLocal();
-  final now = DateTime.now();
-  final today = DateTime(now.year, now.month, now.day);
-  final day = DateTime(local.year, local.month, local.day);
-  String two(int value) => value.toString().padLeft(2, '0');
-  if (day == today) return '${two(local.hour)}:${two(local.minute)}';
-  if (day == today.subtract(const Duration(days: 1))) {
-    return L10n.t('Вчера');
-  }
-  if (local.year == now.year) return '${two(local.day)}.${two(local.month)}';
-  return '${two(local.day)}.${two(local.month)}.${local.year % 100}';
 }
