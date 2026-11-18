@@ -149,6 +149,24 @@ class ServerShareCodec {
 
   static bool fitsQr(String code) => utf8.encode(code).length <= maxQrBytes;
 
+  /// Decompresses in chunks and aborts before a small code can expand into a
+  /// multi-megabyte payload.
+  static List<int> _gunzipLimited(List<int> bytes) {
+    final builder = BytesBuilder(copy: false);
+    var total = 0;
+    final sink = _LimitedSink((data) {
+      total += data.length;
+      if (total > maxCodeBytes) {
+        throw ServerShareException('Код сервера слишком большой');
+      }
+      builder.add(data);
+    });
+    final input = gzip.decoder.startChunkedConversion(sink);
+    input.add(bytes);
+    input.close();
+    return builder.takeBytes();
+  }
+
   static SharedServerBundle decode(String text) {
     final matches = RegExp(r'LMSRV(S?)(Z?)1\.([A-Za-z0-9_-]+)')
         .allMatches(text);
@@ -162,7 +180,12 @@ class ServerShareCodec {
     late final List<int> raw;
     try {
       final bytes = base64Url.decode(padded);
-      raw = gzipEncoded ? gzip.decode(bytes) : bytes;
+      if (bytes.length > maxCodeBytes) {
+        throw ServerShareException('Код сервера слишком большой');
+      }
+      raw = gzipEncoded ? _gunzipLimited(bytes) : bytes;
+    } on ServerShareException {
+      rethrow;
     } catch (_) {
       throw ServerShareException('Повреждённый код сервера');
     }
@@ -350,4 +373,16 @@ ServerConfig? _findServer(List<ServerConfig> servers, ServerConfig shared) {
     }
   }
   return null;
+}
+
+class _LimitedSink implements Sink<List<int>> {
+  _LimitedSink(this._add);
+
+  final void Function(List<int> data) _add;
+
+  @override
+  void add(List<int> data) => _add(data);
+
+  @override
+  void close() {}
 }

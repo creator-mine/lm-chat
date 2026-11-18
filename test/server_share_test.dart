@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lm_chat/models.dart';
@@ -221,6 +222,15 @@ void main() {
     );
     expect(without.servers.single.baseUrl, 'http://192.168.1.50:1234');
     expect(without.servers.single.relayUrl, isEmpty);
+  });
+
+  test('a gzip bomb is rejected before it expands', () {
+    final bomb = gzip.encode(Uint8List(2 * 1024 * 1024));
+    final code = 'LMSRVZ1.${base64Url.encode(bomb).replaceAll('=', '')}';
+    expect(
+      () => ServerShareCodec.decode(code),
+      throwsA(isA<ServerShareException>()),
+    );
   });
 
   test('the payload is valid JSON after base64 decoding', () {
