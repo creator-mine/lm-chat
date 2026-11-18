@@ -960,6 +960,33 @@ class _ServerTile extends StatelessWidget {
     );
   }
 
+  Future<void> _connect(BuildContext context) async {
+    final state = context.read<AppState>();
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(L10n.tf('Подключаюсь к {name}…', {'name': server.name})),
+      ),
+    );
+    final result = await state.connectToServer(server);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          result.error ??
+              'Подключено. Доступно моделей: ${result.models.length}',
+        ),
+      ),
+    );
+  }
+
+  void _disconnect(BuildContext context) {
+    context.read<AppState>().disconnectServer();
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(L10n.t('Отключено от сервера'))));
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
@@ -1013,7 +1040,7 @@ class _ServerTile extends StatelessWidget {
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
-                            'активный',
+                            'подключён',
                             style: TextStyle(
                               fontSize: 10,
                               color: scheme.primary,
@@ -1070,10 +1097,12 @@ class _ServerTile extends StatelessWidget {
             PopupMenuButton<String>(
               onSelected: (value) async {
                 switch (value) {
+                  case 'connect':
+                    await _connect(context);
+                  case 'disconnect':
+                    _disconnect(context);
                   case 'test':
                     await _test(context);
-                  case 'active':
-                    state.setActiveServer(server.id);
                   case 'edit':
                     await _editServer(context, server: server);
                   case 'delete':
@@ -1104,12 +1133,20 @@ class _ServerTile extends StatelessWidget {
                 }
               },
               itemBuilder: (context) => [
-                const PopupMenuItem(value: 'test', child: Text('Проверить')),
-                if (!active)
-                  const PopupMenuItem(
-                    value: 'active',
-                    child: Text('Сделать активным'),
+                PopupMenuItem(
+                  value: active ? 'disconnect' : 'connect',
+                  child: Row(
+                    children: [
+                      Icon(
+                        active ? Icons.link_off_rounded : Icons.link_rounded,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(active ? 'Отключиться' : 'Подключиться'),
+                    ],
                   ),
+                ),
+                const PopupMenuItem(value: 'test', child: Text('Проверить')),
                 const PopupMenuItem(value: 'edit', child: Text('Изменить')),
                 const PopupMenuItem(value: 'delete', child: Text('Удалить')),
               ],

@@ -1882,7 +1882,9 @@ class _AppDrawer extends StatelessWidget {
                             width: 6,
                             height: 6,
                             decoration: BoxDecoration(
-                              color: state.isOffline
+                              color: server == null
+                                  ? scheme.outline
+                                  : state.isOffline
                                   ? scheme.error
                                   : colors.success,
                               shape: BoxShape.circle,
@@ -1892,7 +1894,9 @@ class _AppDrawer extends StatelessWidget {
                           Expanded(
                             child: Text(
                               server == null
-                                  ? 'нет сервера'
+                                  ? (state.servers.isEmpty
+                                        ? 'нет сервера'
+                                        : 'не подключено')
                                   : serverLabel(server),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,

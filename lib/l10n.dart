@@ -253,6 +253,13 @@ class L10n {
     'Проверяю подключение…': 'Testing connection…',
     'Настроить позже': 'Set up later',
     'Подключиться': 'Connect',
+    'Отключиться': 'Disconnect',
+    'Подключаюсь к {name}…': 'Connecting to {name}…',
+    'Отключено от сервера': 'Disconnected from the server',
+    'Сервер отключён. Подключитесь в настройках.':
+        'The server is disconnected. Connect in settings.',
+    'подключён': 'connected',
+    'не подключено': 'not connected',
     'Сохранить без проверки': 'Save without testing',
     'Добавить сервер': 'Add server',
     'Сделать активным': 'Make active',

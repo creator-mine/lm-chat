@@ -310,9 +310,18 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     return null;
   }
 
-  ServerConfig? get activeServer =>
-      serverById(data.activeServerId) ??
-      (data.servers.isNotEmpty ? data.servers.first : null);
+  ServerConfig? get activeServer {
+    final id = data.activeServerId;
+    if (id == null) {
+      return data.servers.isNotEmpty ? data.servers.first : null;
+    }
+    return serverById(id);
+  }
+
+  /// An empty [AppData.activeServerId] is the explicit "disconnected" state.
+  static const String disconnectedServerId = '';
+
+  bool get isDisconnected => data.activeServerId == disconnectedServerId;
 
   @override
   void dispose() {
@@ -510,6 +519,39 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
+  /// Makes [server] active and checks that it is reachable.
+  Future<ModelFetchResult> connectToServer(ServerConfig server) async {
+    final chat = activeChat;
+    data.activeServerId = server.id;
+    if (chat != null && chat.serverId.trim().isEmpty) {
+      chat.serverId = server.id;
+    }
+    _scheduleSave();
+    notifyListeners();
+
+    final result = await refreshModels(server);
+    if (result.error == null && chat != null && chat.model.isEmpty) {
+      final llm = result.models.where((model) => model.isLlm).toList();
+      if (llm.isNotEmpty) setChatModel(chat, llm.first.key);
+    }
+    return result;
+  }
+
+  /// Stops talking to the active server until the user connects again.
+  void disconnectServer() {
+    if (isDisconnected) return;
+    final chat = activeChat;
+    if (chat != null && isGenerating(chat)) _generation.stop(chat.id);
+    data.activeServerId = disconnectedServerId;
+    _scheduleSave();
+    notifyListeners();
+  }
+
+  void _rejectDisconnected() {
+    statusMessage = L10n.t('Сервер отключён. Подключитесь в настройках.');
+    notifyListeners();
+  }
+
   Future<ModelFetchResult> refreshModels(ServerConfig server) async {
     Object? lastError;
     for (var attempt = 0; attempt < 2; attempt++) {
@@ -600,7 +642,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
     final chat = activeChat;
     final server = serverById(chat?.serverId);
-    if (chat != null && server != null) {
+    if (chat != null && server != null && !isDisconnected) {
       if (chat.model.isEmpty) {
         final result = await refreshModels(server);
         final llm = result.models.where((m) => m.isLlm).toList();
@@ -617,9 +659,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   void selectChat(ChatSession chat) {
     activeChat = chat;
-    if (chat.serverId.isNotEmpty) data.activeServerId = chat.serverId;
+    if (chat.serverId.isNotEmpty && !isDisconnected) {
+      data.activeServerId = chat.serverId;
+    }
     final server = serverById(chat.serverId);
-    if (server != null && _catalog.isStale(server.id)) {
+    if (server != null && !isDisconnected && _catalog.isStale(server.id)) {
       unawaited(refreshModels(server));
     }
     notifyListeners();
@@ -1245,6 +1289,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// Re-attaches to answers whose bridge jobs were still running when the app
   /// was closed. The generation itself continued on the server.
   Future<void> _resumePendingJobs({ChatSession? onlyChat}) async {
+    if (isDisconnected) return;
     final chats = onlyChat == null ? [...data.chats] : [onlyChat];
     for (final chat in chats) {
       if (isGenerating(chat)) continue;
@@ -1266,6 +1311,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// app. Used by the "Догрузить ответ" action in the message bubble.
   Future<void> resumeMessage(ChatSession chat, ChatMessage message) async {
     if (isGenerating(chat) || !message.hasPendingJob) return;
+    if (isDisconnected) {
+      _rejectDisconnected();
+      return;
+    }
     final server = serverById(message.jobServerId ?? chat.serverId);
     if (server == null || !server.hasBridge) {
       _clearPendingJob(message);
@@ -1380,6 +1429,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
 
+    if (isDisconnected) {
+      _rejectDisconnected();
+      return;
+    }
+
     final server = serverById(chat.serverId) ?? activeServer;
     if (server == null) {
       statusMessage = L10n.t('Сначала добавьте сервер в настройках');
@@ -1431,6 +1485,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> continueGeneration() async {
     final chat = activeChat;
     if (chat == null || isGenerating(chat)) return;
+    if (isDisconnected) {
+      _rejectDisconnected();
+      return;
+    }
     final index = chat.messages.lastIndexWhere((m) => m.role == 'assistant');
     if (index == -1) return;
     if (index != chat.messages.length - 1) {
@@ -1807,6 +1865,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> regenerate() async {
     final chat = activeChat;
     if (chat == null || isGenerating(chat)) return;
+    if (isDisconnected) {
+      _rejectDisconnected();
+      return;
+    }
 
     final lastUser = chat.messages.lastIndexWhere((m) => m.role == 'user');
     if (lastUser == -1) return;
