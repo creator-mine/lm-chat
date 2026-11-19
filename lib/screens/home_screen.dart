@@ -49,6 +49,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final List<ChatAttachment> _pendingAttachments = [];
   bool _pickingImages = false;
 
+  /// Unsent composer content per chat; switching chats swaps it instead of
+  /// carrying one shared draft everywhere.
+  final Map<String, TextEditingValue> _drafts = {};
+  final Map<String, List<ChatAttachment>> _draftAttachments = {};
+  String? _draftChatId;
+  AppState? _appState;
+
   /// Message multi-select mode used to export only part of a chat.
   bool _selectionMode = false;
   String? _selectionChatId;
@@ -63,6 +70,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       HardwareKeyboard.instance.addHandler(_handleShortcut);
     }
     _voice.addListener(_onVoiceChanged);
+    _appState = context.read<AppState>();
+    _appState!.addListener(_onAppStateChanged);
+    _draftChatId = _appState!.activeChat?.id;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         context.read<AppState>().start();
@@ -200,6 +210,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _appState?.removeListener(_onAppStateChanged);
     if (_shortcutsEnabled) {
       HardwareKeyboard.instance.removeHandler(_handleShortcut);
     }
@@ -217,6 +228,45 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (show != _showScrollButton && mounted) {
       setState(() => _showScrollButton = show);
     }
+  }
+
+  /// Saves the composer into the chat that owned it.
+  void _rememberDraft() {
+    final chatId = _draftChatId;
+    if (chatId == null) return;
+    if (_input.text.isEmpty && _pendingAttachments.isEmpty) {
+      _drafts.remove(chatId);
+      _draftAttachments.remove(chatId);
+      return;
+    }
+    _drafts[chatId] = _input.value;
+    if (_pendingAttachments.isEmpty) {
+      _draftAttachments.remove(chatId);
+    } else {
+      _draftAttachments[chatId] = List.of(_pendingAttachments);
+    }
+  }
+
+  /// Restores the composer of the newly selected chat.
+  void _restoreDraft(String? chatId) {
+    _input.value =
+        (chatId == null ? null : _drafts[chatId]) ?? TextEditingValue.empty;
+    final attachments = chatId == null
+        ? const <ChatAttachment>[]
+        : _draftAttachments[chatId] ?? const <ChatAttachment>[];
+    setState(() {
+      _pendingAttachments
+        ..clear()
+        ..addAll(attachments);
+    });
+  }
+
+  void _onAppStateChanged() {
+    final chatId = _appState?.activeChat?.id;
+    if (chatId == _draftChatId) return;
+    _rememberDraft();
+    _draftChatId = chatId;
+    _restoreDraft(chatId);
   }
 
   void _scrollToBottom() {
@@ -317,6 +367,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (proceed != true || !mounted) return;
     }
     _input.clear();
+    final draftId = _draftChatId;
+    if (draftId != null) {
+      _drafts.remove(draftId);
+      _draftAttachments.remove(draftId);
+    }
     setState(_pendingAttachments.clear);
     unawaited(state.send(text, attachments: attachments));
     if (_scroll.hasClients) {
@@ -352,6 +407,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         dialogTitle: L10n.t('Выберите изображения'),
       );
       if (!mounted || files.isEmpty) return;
+      // The chat may have changed while the picker was open.
+      if (state.activeChat?.id != chat.id) return;
       final remaining = 4 - _pendingAttachments.length;
       if (remaining <= 0) {
         ScaffoldMessenger.of(context)
@@ -424,8 +481,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _newChat({bool closeDrawer = false}) async {
     final state = context.read<AppState>();
-    final chat = state.newChat();
+    final chat = state.openNewChat();
     if (closeDrawer && mounted) Navigator.of(context).pop();
+    if (chat == null) return;
     if (chat.model.isEmpty) {
       final server = state.serverById(chat.serverId);
       if (server != null) {

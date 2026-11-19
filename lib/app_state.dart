@@ -657,6 +657,22 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     return chat;
   }
 
+  /// Opens the composer for a new chat without collecting empty chats.
+  ///
+  /// Returns null when the active chat is already empty. Otherwise reuses an
+  /// existing empty chat, or creates a new one when none is left.
+  ChatSession? openNewChat() {
+    final current = activeChat;
+    if (current != null && current.messages.isEmpty) return null;
+    for (final chat in activeChats) {
+      if (chat.messages.isEmpty) {
+        selectChat(chat);
+        return chat;
+      }
+    }
+    return newChat();
+  }
+
   Future<void> start() async {
     if (activeChat != null) return;
     final available = activeChats;
