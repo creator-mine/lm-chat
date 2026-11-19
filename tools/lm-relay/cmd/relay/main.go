@@ -8,7 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/Spe4naz/lm-chat/tools/lm-relay/internal/relay"
+	"github.com/creator-mine/lm-chat/tools/lm-relay/internal/relay"
 )
 
 func main() {

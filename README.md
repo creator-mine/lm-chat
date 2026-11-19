@@ -6,28 +6,28 @@ Android-клиент (а также приложение для Windows) для 
 
 Написан на Flutter, собирается в один APK.
 
-Плагин для доступа модели к компьютеру: [lm-computer](https://github.com/Spe4naz/lm-computer).
+Плагин для доступа модели к компьютеру: [lm-computer](https://github.com/creator-mine/lm-computer).
 
 ## Документация
 
 Пошаговые инструкции и ответы на частые вопросы — в
-[вики](https://github.com/Spe4naz/lm-chat/wiki):
+[вики](https://github.com/creator-mine/lm-chat/wiki):
 
-- [Установка](https://github.com/Spe4naz/lm-chat/wiki/Installation)
-- [Обновление приложения](https://github.com/Spe4naz/lm-chat/wiki/Updating)
-- [Настройка LM Studio](https://github.com/Spe4naz/lm-chat/wiki/LM-Studio)
-- [Мостик к `lms`](https://github.com/Spe4naz/lm-chat/wiki/Bridge)
-- [MCP-инструменты](https://github.com/Spe4naz/lm-chat/wiki/MCP)
-- [Частые вопросы](https://github.com/Spe4naz/lm-chat/wiki/FAQ)
-- [Устранение неполадок](https://github.com/Spe4naz/lm-chat/wiki/Troubleshooting)
-- [Безопасность](https://github.com/Spe4naz/lm-chat/wiki/Security)
-- [Сборка и релиз](https://github.com/Spe4naz/lm-chat/wiki/Building)
+- [Установка](https://github.com/creator-mine/lm-chat/wiki/Installation)
+- [Обновление приложения](https://github.com/creator-mine/lm-chat/wiki/Updating)
+- [Настройка LM Studio](https://github.com/creator-mine/lm-chat/wiki/LM-Studio)
+- [Мостик к `lms`](https://github.com/creator-mine/lm-chat/wiki/Bridge)
+- [MCP-инструменты](https://github.com/creator-mine/lm-chat/wiki/MCP)
+- [Частые вопросы](https://github.com/creator-mine/lm-chat/wiki/FAQ)
+- [Устранение неполадок](https://github.com/creator-mine/lm-chat/wiki/Troubleshooting)
+- [Безопасность](https://github.com/creator-mine/lm-chat/wiki/Security)
+- [Сборка и релиз](https://github.com/creator-mine/lm-chat/wiki/Building)
 
 Исходники страниц лежат в каталоге [`wiki/`](wiki) этого репозитория. Чтобы
 опубликовать правки:
 
 ```bash
-git clone https://github.com/Spe4naz/lm-chat.wiki.git /tmp/lm-chat-wiki
+git clone https://github.com/creator-mine/lm-chat.wiki.git /tmp/lm-chat-wiki
 cp wiki/*.md /tmp/lm-chat-wiki/
 git -C /tmp/lm-chat-wiki add -A
 git -C /tmp/lm-chat-wiki commit -m "Update wiki"
@@ -35,7 +35,7 @@ git -C /tmp/lm-chat-wiki push
 ```
 
 GitHub создаёт вики-репозиторий только после первой страницы, созданной в
-браузере: откройте `https://github.com/Spe4naz/lm-chat/wiki` и нажмите
+браузере: откройте `https://github.com/creator-mine/lm-chat/wiki` и нажмите
 «Create the first page», если клонирование отвечает «Repository not found».
 
 ## Возможности

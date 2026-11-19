@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Spe4naz/lm-chat/tools/lm-relay/internal/tunnel"
+	"github.com/creator-mine/lm-chat/tools/lm-relay/internal/tunnel"
 )
 
 // session is one connected agent plus its per-device limits.

@@ -59,7 +59,7 @@ app.*.map.json
 **/node_modules/
 /tools/lm-computer-plugin/*.zip
 
-# The plugin is published as a separate repository: Spe4naz/lm-computer
+# The plugin is published as a separate repository: creator-mine/lm-computer
 /tools/lm-computer-plugin/
 
 # Generated tool caches

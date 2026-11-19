@@ -4,7 +4,7 @@ LM Chat is a local-network client for LM Studio. It is not designed to be
 exposed directly to the internet.
 
 The companion LM Studio plugin is
-[lm-computer](https://github.com/Spe4naz/lm-computer).
+[lm-computer](https://github.com/creator-mine/lm-computer).
 
 ## Reporting a vulnerability
 
@@ -32,7 +32,7 @@ the repository history. Removing the file alone is not enough.
 
 ## Updates
 
-Auto-update uses the public GitHub Releases API for `Spe4naz/lm-chat`. The app
+Auto-update uses the public GitHub Releases API for `creator-mine/lm-chat`. The app
 accepts only an allowlisted asset name and an HTTPS `github.com` URL, caps the
 download at 400 MB, applies an overall deadline, verifies the SHA-256 digest
 from the GitHub API, and deletes a partial file on failure.

@@ -18,10 +18,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Spe4naz/lm-chat/tools/lm-relay/internal/agent"
-	"github.com/Spe4naz/lm-chat/tools/lm-relay/internal/e2e"
-	"github.com/Spe4naz/lm-chat/tools/lm-relay/internal/protocol"
-	"github.com/Spe4naz/lm-chat/tools/lm-relay/internal/relay"
+	"github.com/creator-mine/lm-chat/tools/lm-relay/internal/agent"
+	"github.com/creator-mine/lm-chat/tools/lm-relay/internal/e2e"
+	"github.com/creator-mine/lm-chat/tools/lm-relay/internal/protocol"
+	"github.com/creator-mine/lm-chat/tools/lm-relay/internal/relay"
 )
 
 const (

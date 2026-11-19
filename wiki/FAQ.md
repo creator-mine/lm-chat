@@ -12,19 +12,19 @@ git pull
 
 Затем перезапустите LM Studio, чтобы он подхватил новую сборку плагина.
 Сервис `lm-computer.service` перезапускает сам `install.sh`. Подробная версия
-с проверкой и откатом: [lm-computer → Updating](https://github.com/Spe4naz/lm-computer/wiki/Updating).
+с проверкой и откатом: [lm-computer → Updating](https://github.com/creator-mine/lm-computer/wiki/Updating).
 
 ## Как обновить приложение?
 
 Автоматически — плашка «Доступно обновление» (проверка не чаще раза в 6 часов).
-Вручную — скачать APK или установщик из [Releases](https://github.com/Spe4naz/lm-chat/releases).
-Полностью: [Updating](https://github.com/Spe4naz/lm-chat/wiki/Updating).
+Вручную — скачать APK или установщик из [Releases](https://github.com/creator-mine/lm-chat/releases).
+Полностью: [Updating](https://github.com/creator-mine/lm-chat/wiki/Updating).
 
 ## Почему модель загружается не на 100% GPU?
 
 LM Studio подбирает оффлоад под свободную видеопамять. Часть слоёв остаётся на
 CPU — это нормально. Принудительно задать `--gpu max` можно через
-[мостик](https://github.com/Spe4naz/lm-chat/wiki/Bridge), но при нехватке VRAM
+[мостик](https://github.com/creator-mine/lm-chat/wiki/Bridge), но при нехватке VRAM
 загрузка может упасть. Оценка: `lms load <модель> --gpu max --estimate-only`.
 
 ## Почему ответ обрывается, когда я сворачиваю приложение?
@@ -39,7 +39,7 @@ wake lock (переключатель **«Продолжать в фоне»**).
 
 Нет. Без него чат, история, изображения и статистика работают как обычно.
 Мостик нужен для принудительного оффлоада на GPU, оценки памяти и фоновых
-заданий. См. [Bridge](https://github.com/Spe4naz/lm-chat/wiki/Bridge).
+заданий. См. [Bridge](https://github.com/creator-mine/lm-chat/wiki/Bridge).
 
 ## Можно ли использовать не LM Studio?
 
@@ -77,7 +77,7 @@ Android стирает её вместе с данными. Восстанови
 
 LM Studio по умолчанию отдаёт HTTP, а для домашней сети это проще. Трафик при
 этом не шифруется: токены и чаты видны в локальной сети. Подробнее — в
-[Security](https://github.com/Spe4naz/lm-chat/wiki/Security).
+[Security](https://github.com/creator-mine/lm-chat/wiki/Security).
 
 ## Почему приложение не подключается к серверу?
 

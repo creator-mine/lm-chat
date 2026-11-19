@@ -1,6 +1,6 @@
 [Unit]
 Description=LM Chat relay agent
-Documentation=https://github.com/Spe4naz/lm-chat
+Documentation=https://github.com/creator-mine/lm-chat
 After=network-online.target
 Wants=network-online.target
 

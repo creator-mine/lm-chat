@@ -7,7 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/Spe4naz/lm-chat/tools/lm-relay/internal/protocol"
+	"github.com/creator-mine/lm-chat/tools/lm-relay/internal/protocol"
 )
 
 // initialWindow is how many bytes either side may send on a new stream before

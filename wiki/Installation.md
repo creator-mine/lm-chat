@@ -4,7 +4,7 @@
 
 Требования: Android 7.0+ (API 24), ~60 МБ на universal APK.
 
-1. Откройте [Releases](https://github.com/Spe4naz/lm-chat/releases) на телефоне.
+1. Откройте [Releases](https://github.com/creator-mine/lm-chat/releases) на телефоне.
 2. Скачайте `lm-chat-universal.apk` — он подходит для любой архитектуры.
    Компактные варианты (`lm-chat-arm64-v8a.apk` и другие) — только для
    соответствующей архитектуры.
@@ -22,14 +22,14 @@ adb install -r lm-chat-universal.apk
 Приложение проверяет сертификат скачанного APK перед автообновлением, поэтому
 все APK, которые должны ставиться поверх друг друга, обязаны быть подписаны
 одним и тем же ключом. Подробности и предупреждение о debug-подписи — в
-[Updating](https://github.com/Spe4naz/lm-chat/wiki/Updating) и
-[Building](https://github.com/Spe4naz/lm-chat/wiki/Building).
+[Updating](https://github.com/creator-mine/lm-chat/wiki/Updating) и
+[Building](https://github.com/creator-mine/lm-chat/wiki/Building).
 
 ## Windows
 
 Требования: Windows 10/11 x64.
 
-1. Скачайте `lm-chat-setup-<версия>.exe` из [Releases](https://github.com/Spe4naz/lm-chat/releases).
+1. Скачайте `lm-chat-setup-<версия>.exe` из [Releases](https://github.com/creator-mine/lm-chat/releases).
 2. Запустите установщик.
 
 - Устанавливается только для текущего пользователя, без UAC, в
@@ -53,7 +53,7 @@ Portable-архив `lm-chat-windows-x64.zip` распаковывается в�
 3. Нажмите «Проверить подключение». Приложение запросит `/api/v1/models`
    (или `/v1/models` на старом LM Studio).
 4. Выберите модель, при необходимости настройте контекст и оффлоад
-   ([LM-Studio](https://github.com/Spe4naz/lm-chat/wiki/LM-Studio)).
+   ([LM-Studio](https://github.com/creator-mine/lm-chat/wiki/LM-Studio)).
 5. Напишите первое сообщение.
 
 HTTP разрешён только для локальных адресов: `192.168/16`, `10/8`,

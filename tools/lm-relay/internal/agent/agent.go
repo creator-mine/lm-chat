@@ -22,9 +22,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Spe4naz/lm-chat/tools/lm-relay/internal/e2e"
-	"github.com/Spe4naz/lm-chat/tools/lm-relay/internal/protocol"
-	"github.com/Spe4naz/lm-chat/tools/lm-relay/internal/tunnel"
+	"github.com/creator-mine/lm-chat/tools/lm-relay/internal/e2e"
+	"github.com/creator-mine/lm-chat/tools/lm-relay/internal/protocol"
+	"github.com/creator-mine/lm-chat/tools/lm-relay/internal/tunnel"
 	"github.com/coder/websocket"
 )
 

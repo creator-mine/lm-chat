@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Spe4naz/lm-chat/tools/lm-relay/internal/protocol"
+	"github.com/creator-mine/lm-chat/tools/lm-relay/internal/protocol"
 	"github.com/coder/websocket"
 )
 

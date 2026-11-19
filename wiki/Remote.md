@@ -5,7 +5,7 @@
 машине с LM Studio открывает исходящее WSS-соединение, а приложение ходит на
 `https://relay.example.com/d/<device>/…`.
 
-Подробная установка: [tools/lm-relay/README.md](https://github.com/Spe4naz/lm-chat/blob/main/tools/lm-relay/README.md).
+Подробная установка: [tools/lm-relay/README.md](https://github.com/creator-mine/lm-chat/blob/main/tools/lm-relay/README.md).
 
 ## В приложении
 

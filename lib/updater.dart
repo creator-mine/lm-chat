@@ -54,7 +54,7 @@ class UpdateService extends ChangeNotifier {
       _platformOverride = platform;
 
   static final Uri _latestReleaseUri = Uri.parse(
-    'https://api.github.com/repos/Spe4naz/lm-chat/releases/latest',
+    'https://api.github.com/repos/creator-mine/lm-chat/releases/latest',
   );
   static const String _userAgent = 'lm-chat-updater';
   static const MethodChannel _updateChannel = MethodChannel('lm_chat/update');

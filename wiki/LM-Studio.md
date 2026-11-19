@@ -109,10 +109,10 @@ GPU, включите Flash Attention или возьмите более ком�
   generator). Хука «перед загрузкой модели» в API плагинов нет.
 
 Единственный надёжный путь — CLI `lms` через мостик:
-[Bridge](https://github.com/Spe4naz/lm-chat/wiki/Bridge).
+[Bridge](https://github.com/creator-mine/lm-chat/wiki/Bridge).
 
 ## Доступ к компьютеру
 
-Плагин [lm-computer](https://github.com/Spe4naz/lm-computer/wiki) даёт модели
+Плагин [lm-computer](https://github.com/creator-mine/lm-computer/wiki) даёт модели
 файловые инструменты и `shell_run`. REST и MCP работают в отдельном сервисе на
 портах `1236`/`1237`, потому что LM Studio выгружает процессы плагинов.

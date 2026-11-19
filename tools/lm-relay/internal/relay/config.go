@@ -10,7 +10,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/Spe4naz/lm-chat/tools/lm-relay/internal/protocol"
+	"github.com/creator-mine/lm-chat/tools/lm-relay/internal/protocol"
 )
 
 // Service names used by the agent and by the route table.

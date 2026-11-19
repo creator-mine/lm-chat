@@ -9,7 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/Spe4naz/lm-chat/tools/lm-relay/internal/agent"
+	"github.com/creator-mine/lm-chat/tools/lm-relay/internal/agent"
 )
 
 func main() {

@@ -1,4 +1,4 @@
-module github.com/Spe4naz/lm-chat/tools/lm-relay
+module github.com/creator-mine/lm-chat/tools/lm-relay
 
 go 1.24
 

@@ -1,6 +1,6 @@
 # Обновление приложения
 
-LM Chat обновляется из [GitHub Releases](https://github.com/Spe4naz/lm-chat/releases).
+LM Chat обновляется из [GitHub Releases](https://github.com/creator-mine/lm-chat/releases).
 Отдельного магазина приложений нет.
 
 ## Автоматически
@@ -63,7 +63,7 @@ APK подписан другим ключом. Android не разрешает 
 - взять APK из официального релиза, подписанный тем же ключом;
 - удалить приложение и поставить заново — **все чаты на устройстве пропадут**,
   поэтому сначала сделайте экспорт истории и профиля (см.
-  [Installation](https://github.com/Spe4naz/lm-chat/wiki/Installation)).
+  [Installation](https://github.com/creator-mine/lm-chat/wiki/Installation)).
 
 **«Не удалось проверить SHA-256».**
 Файл скачался не полностью или в описании релиза нет хеша для этого файла.
@@ -72,7 +72,7 @@ APK подписан другим ключом. Android не разрешает 
 **«Неподписанный установщик Windows».**
 Автообновление запускает только EXE с валидной подписью Authenticode.
 Подписанный установщик должен быть собран с `LMCHAT_SIGN_CERT` — см.
-[Building](https://github.com/Spe4naz/lm-chat/wiki/Building). Неподписанный
+[Building](https://github.com/creator-mine/lm-chat/wiki/Building). Неподписанный
 можно поставить вручную, но автообновление его не примет.
 
 **Android не даёт установить APK.**
@@ -96,4 +96,4 @@ git pull
 ./install.sh
 ```
 
-Подробнее: [Как обновить плагин](https://github.com/Spe4naz/lm-computer/wiki/Updating).
+Подробнее: [Как обновить плагин](https://github.com/creator-mine/lm-computer/wiki/Updating).

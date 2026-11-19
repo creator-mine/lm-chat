@@ -94,7 +94,7 @@ keystore.
 2. В приложении обновите токен сервера.
 3. Для мостика: замените `BRIDGE_TOKEN` в `/etc/lm-gpu-bridge.env`, перезапустите
    `lms-gpu-bridge` и обновите токен в настройках сервера.
-4. Для плагина: см. [lm-computer → Security](https://github.com/Spe4naz/lm-computer/wiki/Security).
+4. Для плагина: см. [lm-computer → Security](https://github.com/creator-mine/lm-computer/wiki/Security).
 
 ## Сообщить об уязвимости
 

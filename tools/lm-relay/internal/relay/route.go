@@ -3,7 +3,7 @@ package relay
 import (
 	"strings"
 
-	"github.com/Spe4naz/lm-chat/tools/lm-relay/internal/protocol"
+	"github.com/creator-mine/lm-chat/tools/lm-relay/internal/protocol"
 )
 
 // routeService maps a public path to the local service that serves it.

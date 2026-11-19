@@ -14,21 +14,21 @@ Map<String, dynamic> _release({
 }) => {
   'tag_name': tag,
   'body': body,
-  'html_url': 'https://github.com/Spe4naz/lm-chat/releases/tag/$tag',
+  'html_url': 'https://github.com/creator-mine/lm-chat/releases/tag/$tag',
   'assets':
       assets ??
       [
         {
           'name': 'lm-chat-universal.apk',
           'browser_download_url':
-              'https://github.com/Spe4naz/lm-chat/releases/download/$tag/lm-chat-universal.apk',
+              'https://github.com/creator-mine/lm-chat/releases/download/$tag/lm-chat-universal.apk',
           'size': 123,
           'digest': digest,
         },
         {
           'name': 'lm-chat-setup-1.8.0.exe',
           'browser_download_url':
-              'https://github.com/Spe4naz/lm-chat/releases/download/$tag/lm-chat-setup-1.8.0.exe',
+              'https://github.com/creator-mine/lm-chat/releases/download/$tag/lm-chat-setup-1.8.0.exe',
           'size': 456,
           'digest': digest,
         },
@@ -106,7 +106,7 @@ void main() {
     final assets = [
       {
         'name': 'lm-chat-setup-evil.exe',
-        'browser_download_url': 'https://github.com/Spe4naz/lm-chat/releases/download/v1.8.1/lm-chat-setup-evil.exe',
+        'browser_download_url': 'https://github.com/creator-mine/lm-chat/releases/download/v1.8.1/lm-chat-setup-evil.exe',
         'size': 456,
         'digest': 'sha256:$_hash',
       },
@@ -125,7 +125,7 @@ void main() {
     final assets = [
       {
         'name': 'lm-chat-universal.apk',
-        'browser_download_url': 'https://github.com/Spe4naz/lm-chat/releases/download/v1.8.1/lm-chat-universal.apk',
+        'browser_download_url': 'https://github.com/creator-mine/lm-chat/releases/download/v1.8.1/lm-chat-universal.apk',
         'size': UpdateService.maxAssetBytes + 1,
         'digest': 'sha256:$_hash',
       },
