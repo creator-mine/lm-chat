@@ -133,6 +133,7 @@ class L10n {
     'Будет удалено чатов: {count}. Действие нельзя отменить.':
         'Chats to delete: {count}. This cannot be undone.',
     'Удалено чатов: {count}': 'Deleted chats: {count}',
+    'Подключено к реле': 'Connected to relay',
     'Объединить с текущими чатами из JSON':
         'Merge with current chats from JSON',
     'Настройки': 'Settings',

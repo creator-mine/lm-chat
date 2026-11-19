@@ -134,6 +134,8 @@ class AppDrawer extends StatelessWidget {
                                   ? (state.servers.isEmpty
                                         ? 'нет сервера'
                                         : 'не подключено')
+                                  : server.hasRelay
+                                  ? L10n.t('Подключено к реле')
                                   : serverLabel(server),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,

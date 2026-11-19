@@ -85,3 +85,28 @@ String formatGpuRatio(double? ratio) {
 /// Removes ANSI escape sequences from CLI output before showing it in the UI.
 String stripAnsi(String text) =>
     text.replaceAll(RegExp(r'\x1B\[[0-9;]*[A-Za-z]'), '');
+
+/// Translates the English labels printed by `lms load --estimate-only`.
+///
+/// The CLI output is not localized, so the memory estimate dialog was showing
+/// mixed Russian and English. Unknown lines are left untouched.
+String localizeLmsEstimate(String text) {
+  if (L10n.isEnglish) return text;
+  const replacements = <String, String>{
+    'Estimated GPU Memory:': 'Ожидаемая память GPU:',
+    'Estimated Total Memory:': 'Ожидаемая общая память:',
+    'Estimate: This model may be loaded based on your resource guardrails settings.': 'Оценка: модель может быть загружена с учётом настроек ограничений ресурсов.',
+    'This model may be loaded based on your resource guardrails settings.':
+        'Модель может быть загружена с учётом настроек ограничений ресурсов.',
+    'Confidence: LOW': 'Уверенность: низкая',
+    'Confidence: MEDIUM': 'Уверенность: средняя',
+    'Confidence: HIGH': 'Уверенность: высокая',
+    'Confidence:': 'Уверенность:',
+    'Model:': 'Модель:',
+  };
+  var value = text;
+  for (final entry in replacements.entries) {
+    value = value.replaceAll(entry.key, entry.value);
+  }
+  return value;
+}

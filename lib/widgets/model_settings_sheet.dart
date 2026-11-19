@@ -243,7 +243,7 @@ class _ModelSettingsSheetState extends State<_ModelSettingsSheet> {
       setState(() => _error = result.error);
       return;
     }
-    final text = stripAnsi(result.output).trim();
+    final text = localizeLmsEstimate(stripAnsi(result.output).trim());
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
