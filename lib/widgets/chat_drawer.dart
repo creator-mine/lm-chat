@@ -276,6 +276,8 @@ class ChatListState extends State<ChatList> {
   final _searchFocus = FocusNode();
   String _query = '';
   bool _showArchived = false;
+  bool _selecting = false;
+  final Set<String> _selectedChatIds = {};
 
   void focusSearch() {
     _searchFocus.requestFocus();
@@ -304,7 +306,7 @@ class ChatListState extends State<ChatList> {
     }).toList();
   }
 
-  Future<void> _showActions(ChatSession chat) async {
+  Future<void> _showActions(ChatSession chat, Offset position) async {
     final state = context.read<AppState>();
     ChatSession? parent;
     for (final candidate in state.chats) {
@@ -313,78 +315,180 @@ class ChatListState extends State<ChatList> {
         break;
       }
     }
-    await showModalBottomSheet<void>(
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    final size = overlay?.size ?? MediaQuery.sizeOf(context);
+    final action = await showMenu<_ChatAction>(
       context: context,
-      showDragHandle: true,
-      useSafeArea: true,
-      constraints: const BoxConstraints(maxWidth: 460),
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: Icon(
-                chat.pinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
-              ),
-              title: Text(chat.pinned ? 'Открепить' : 'Закрепить'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                state.togglePinned(chat);
-              },
-            ),
-            ListTile(
-              leading: Icon(
-                chat.archived
-                    ? Icons.unarchive_rounded
-                    : Icons.archive_outlined,
-              ),
-              title: Text(chat.archived ? 'Вернуть из архива' : 'Архивировать'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                if (chat.archived) {
-                  state.unarchiveChat(chat);
-                } else {
-                  state.archiveChat(chat);
-                }
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.edit_rounded),
-              title: const Text('Переименовать'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                widget.onRenameChat(chat);
-              },
-            ),
-            if (parent != null)
-              ListTile(
-                leading: const Icon(Icons.call_split_rounded),
-                title: const Text('Открыть исходный чат'),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  state.selectChat(parent!);
-                },
-              ),
-            ListTile(
-              leading: Icon(
-                Icons.delete_outline_rounded,
-                color: Theme.of(sheetContext).colorScheme.error,
-              ),
-              title: Text(
-                'Удалить',
-                style: TextStyle(
-                  color: Theme.of(sheetContext).colorScheme.error,
-                ),
-              ),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                widget.onDeleteChat(chat);
-              },
-            ),
-          ],
+      constraints: const BoxConstraints(minWidth: 220, maxWidth: 320),
+      position: RelativeRect.fromRect(
+        Rect.fromLTWH(position.dx, position.dy, 0, 0),
+        Offset.zero & size,
+      ),
+      items: [
+        const PopupMenuItem(
+          value: _ChatAction.rename,
+          child: _ChatMenuRow(Icons.edit_rounded, 'Переименовать'),
         ),
+        PopupMenuItem(
+          value: chat.pinned ? _ChatAction.unpin : _ChatAction.pin,
+          child: _ChatMenuRow(
+            chat.pinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
+            chat.pinned ? 'Открепить' : 'Закрепить',
+          ),
+        ),
+        PopupMenuItem(
+          value: chat.archived ? _ChatAction.unarchive : _ChatAction.archive,
+          child: _ChatMenuRow(
+            chat.archived ? Icons.unarchive_rounded : Icons.archive_outlined,
+            chat.archived ? 'Вернуть из архива' : 'Архивировать',
+          ),
+        ),
+        if (parent != null)
+          const PopupMenuItem(
+            value: _ChatAction.openParent,
+            child: _ChatMenuRow(
+              Icons.call_split_rounded,
+              'Открыть исходный чат',
+            ),
+          ),
+        const PopupMenuDivider(),
+        const PopupMenuItem(
+          value: _ChatAction.select,
+          child: _ChatMenuRow(Icons.checklist_rounded, 'Выбрать несколько'),
+        ),
+        const PopupMenuDivider(),
+        PopupMenuItem(
+          value: _ChatAction.delete,
+          child: _ChatMenuRow(
+            Icons.delete_outline_rounded,
+            'Удалить',
+            color: Theme.of(context).colorScheme.error,
+          ),
+        ),
+      ],
+    );
+    if (!mounted || action == null) return;
+    switch (action) {
+      case _ChatAction.rename:
+        await widget.onRenameChat(chat);
+      case _ChatAction.pin:
+      case _ChatAction.unpin:
+        state.togglePinned(chat);
+      case _ChatAction.archive:
+        state.archiveChat(chat);
+      case _ChatAction.unarchive:
+        state.unarchiveChat(chat);
+      case _ChatAction.openParent:
+        if (parent != null) state.selectChat(parent);
+      case _ChatAction.select:
+        _startSelection(chat);
+      case _ChatAction.delete:
+        await widget.onDeleteChat(chat);
+    }
+  }
+
+  void _startSelection([ChatSession? chat]) {
+    setState(() {
+      _selecting = true;
+      _selectedChatIds.clear();
+      if (chat != null) _selectedChatIds.add(chat.id);
+      _searchFocus.unfocus();
+    });
+  }
+
+  void _exitSelection() {
+    if (!_selecting) return;
+    setState(() {
+      _selecting = false;
+      _selectedChatIds.clear();
+    });
+  }
+
+  void _toggleChatSelection(ChatSession chat) {
+    setState(() {
+      if (!_selectedChatIds.remove(chat.id)) {
+        _selectedChatIds.add(chat.id);
+      }
+    });
+  }
+
+  void _toggleSelectAll(List<ChatSession> chats) {
+    if (chats.isEmpty) return;
+    final allSelected = chats.every(
+      (chat) => _selectedChatIds.contains(chat.id),
+    );
+    setState(() {
+      if (allSelected) {
+        _selectedChatIds.removeAll(chats.map((chat) => chat.id));
+      } else {
+        _selectedChatIds.addAll(chats.map((chat) => chat.id));
+      }
+    });
+  }
+
+  List<ChatSession> _selectedChats() {
+    final state = context.read<AppState>();
+    return [
+      for (final chat in state.chats)
+        if (_selectedChatIds.contains(chat.id)) chat,
+    ];
+  }
+
+  void _pinSelected() {
+    final selected = _selectedChats();
+    if (selected.isEmpty) return;
+    final pin = selected.any((chat) => !chat.pinned);
+    context.read<AppState>().setPinnedChats(selected, pin);
+    _exitSelection();
+  }
+
+  void _archiveSelected() {
+    final selected = _selectedChats();
+    if (selected.isEmpty) return;
+    context.read<AppState>().archiveChats(selected, archived: !_showArchived);
+    _exitSelection();
+  }
+
+  Future<void> _deleteSelected() async {
+    final selected = _selectedChats();
+    if (selected.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Удалить выбранные чаты?'),
+        content: Text(
+          L10n.tf('Будет удалено чатов: {count}. Действие нельзя отменить.', {
+            'count': selected.length,
+          }),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+            ),
+            child: const Text('Удалить'),
+          ),
+        ],
       ),
     );
+    if (confirmed != true || !mounted) return;
+    final removed = context.read<AppState>().deleteChats(selected);
+    if (!mounted) return;
+    _exitSelection();
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(L10n.tf('Удалено чатов: {count}', {'count': removed})),
+        ),
+      );
   }
 
   @override
@@ -393,69 +497,189 @@ class ChatListState extends State<ChatList> {
     final scheme = Theme.of(context).colorScheme;
     final source = _showArchived ? state.archivedChats : state.activeChats;
     final chats = _filtered(source);
+    final selectedChats = _selectedChats();
+    final allVisibleSelected =
+        chats.isNotEmpty &&
+        chats.every((chat) => _selectedChatIds.contains(chat.id));
+    final allPinned =
+        selectedChats.isNotEmpty && selectedChats.every((chat) => chat.pinned);
+    final hasSelection = selectedChats.isNotEmpty;
 
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
-          child: TextField(
-            key: const ValueKey('chat-search-field'),
-            controller: _search,
-            focusNode: _searchFocus,
-            onChanged: (value) => setState(() => _query = value),
-            decoration: InputDecoration(
-              hintText: L10n.t('Поиск по чатам и сообщениям'),
-              prefixIcon: const Icon(Icons.search_rounded, size: 19),
-              isDense: true,
-              suffixIcon: _query.isEmpty
-                  ? null
-                  : IconButton(
-                      onPressed: () {
-                        _search.clear();
-                        setState(() => _query = '');
-                      },
-                      icon: const Icon(Icons.close_rounded, size: 18),
-                      tooltip: L10n.t('Очистить'),
+        if (_selecting)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(6, 6, 6, 2),
+            child: Row(
+              children: [
+                IconButton(
+                  onPressed: _exitSelection,
+                  icon: const Icon(Icons.close_rounded, size: 20),
+                  tooltip: L10n.t('Отмена'),
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 34,
+                    height: 34,
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    L10n.tf('Выбрано: {count}', {
+                      'count': _selectedChatIds.length,
+                    }),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
                     ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: chats.isEmpty
+                      ? null
+                      : () => _toggleSelectAll(chats),
+                  icon: Icon(
+                    allVisibleSelected
+                        ? Icons.deselect_rounded
+                        : Icons.select_all_rounded,
+                    size: 19,
+                  ),
+                  tooltip: allVisibleSelected
+                      ? L10n.t('Снять все')
+                      : L10n.t('Выбрать все'),
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 34,
+                    height: 34,
+                  ),
+                ),
+                IconButton(
+                  onPressed: hasSelection ? _pinSelected : null,
+                  icon: Icon(
+                    allPinned
+                        ? Icons.push_pin_rounded
+                        : Icons.push_pin_outlined,
+                    size: 19,
+                  ),
+                  tooltip: allPinned
+                      ? L10n.t('Открепить выбранные')
+                      : L10n.t('Закрепить выбранные'),
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 34,
+                    height: 34,
+                  ),
+                ),
+                IconButton(
+                  onPressed: hasSelection ? _archiveSelected : null,
+                  icon: Icon(
+                    _showArchived
+                        ? Icons.unarchive_rounded
+                        : Icons.archive_outlined,
+                    size: 19,
+                  ),
+                  tooltip: _showArchived
+                      ? L10n.t('Вернуть выбранные из архива')
+                      : L10n.t('Архивировать выбранные'),
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 34,
+                    height: 34,
+                  ),
+                ),
+                IconButton(
+                  onPressed: hasSelection ? _deleteSelected : null,
+                  icon: const Icon(Icons.delete_outline_rounded, size: 19),
+                  color: hasSelection ? scheme.error : null,
+                  tooltip: L10n.t('Удалить выбранные'),
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 34,
+                    height: 34,
+                  ),
+                ),
+              ],
+            ),
+          )
+        else ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+            child: TextField(
+              key: const ValueKey('chat-search-field'),
+              controller: _search,
+              focusNode: _searchFocus,
+              onChanged: (value) => setState(() => _query = value),
+              decoration: InputDecoration(
+                hintText: L10n.t('Поиск по чатам и сообщениям'),
+                prefixIcon: const Icon(Icons.search_rounded, size: 19),
+                isDense: true,
+                suffixIcon: _query.isEmpty
+                    ? null
+                    : IconButton(
+                        onPressed: () {
+                          _search.clear();
+                          setState(() => _query = '');
+                        },
+                        icon: const Icon(Icons.close_rounded, size: 18),
+                        tooltip: L10n.t('Очистить'),
+                      ),
+              ),
             ),
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(22, 8, 8, 2),
-          child: Row(
-            children: [
-              Text(
-                _showArchived ? 'АРХИВ' : 'ЧАТЫ',
-                style: TextStyle(
-                  fontSize: 10.5,
-                  letterSpacing: 0.9,
-                  fontWeight: FontWeight.w700,
-                  color: scheme.onSurfaceVariant,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 8, 8, 2),
+            child: Row(
+              children: [
+                Text(
+                  _showArchived ? 'АРХИВ' : 'ЧАТЫ',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    letterSpacing: 0.9,
+                    fontWeight: FontWeight.w700,
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
-              ),
-              const Spacer(),
-              TextButton(
-                onPressed: () => setState(() {
-                  _showArchived = !_showArchived;
-                  _query = '';
-                  _search.clear();
-                }),
-                style: TextButton.styleFrom(
+                const Spacer(),
+                IconButton(
+                  onPressed: chats.isEmpty ? null : () => _startSelection(),
+                  icon: const Icon(Icons.checklist_rounded, size: 18),
+                  tooltip: L10n.t('Выбрать несколько'),
                   visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 32,
+                    height: 32,
+                  ),
                 ),
-                child: Text(
-                  _showArchived
-                      ? L10n.t('К активным')
-                      : L10n.tf('Архив ({count})', {
-                          'count': state.archivedChats.length,
-                        }),
-                  style: const TextStyle(fontSize: 11.5),
+                TextButton(
+                  onPressed: () => setState(() {
+                    _showArchived = !_showArchived;
+                    _query = '';
+                    _search.clear();
+                  }),
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                  child: Text(
+                    _showArchived
+                        ? L10n.t('К активным')
+                        : L10n.tf('Архив ({count})', {
+                            'count': state.archivedChats.length,
+                          }),
+                    style: const TextStyle(fontSize: 11.5),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
+        ],
         Expanded(
           child: chats.isEmpty
               ? Center(
@@ -481,15 +705,27 @@ class ChatListState extends State<ChatList> {
                     final chat = chats[index];
                     return ChatTile(
                       chat: chat,
-                      selected: chat.id == state.activeChat?.id,
+                      selectionMode: _selecting,
+                      checked: _selectedChatIds.contains(chat.id),
+                      selected: !_selecting && chat.id == state.activeChat?.id,
                       generating: state.isGenerating(chat),
                       onTap: () {
+                        if (_selecting) {
+                          _toggleChatSelection(chat);
+                          return;
+                        }
                         state.selectChat(chat);
                         if (widget.closeOnSelect) {
                           Navigator.of(context).maybePop();
                         }
                       },
-                      onLongPress: () => _showActions(chat),
+                      onLongPress: (position) {
+                        if (_selecting) {
+                          _toggleChatSelection(chat);
+                          return;
+                        }
+                        _showActions(chat, position);
+                      },
                     );
                   },
                 ),
@@ -507,125 +743,177 @@ class ChatTile extends StatelessWidget {
     required this.generating,
     required this.onTap,
     required this.onLongPress,
+    this.selectionMode = false,
+    this.checked = false,
   });
 
   final ChatSession chat;
   final bool selected;
   final bool generating;
   final VoidCallback onTap;
-  final VoidCallback onLongPress;
+  final ValueChanged<Offset> onLongPress;
+  final bool selectionMode;
+  final bool checked;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final preview = _chatPreview(chat);
+    final highlighted = selectionMode ? checked : selected;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 2),
-      child: Material(
-        color: selected
-            ? scheme.primary.withValues(alpha: 0.10)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
+      child: GestureDetector(
+        onLongPressStart: (details) => onLongPress(details.globalPosition),
+        child: Material(
+          color: highlighted
+              ? scheme.primary.withValues(alpha: selectionMode ? 0.16 : 0.10)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
-          onTap: onTap,
-          onLongPress: onLongPress,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
-            child: Row(
-              children: [
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? scheme.primary.withValues(alpha: 0.16)
-                        : scheme.surfaceContainer,
-                    borderRadius: BorderRadius.circular(10),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
+              child: Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: highlighted
+                          ? scheme.primary.withValues(alpha: 0.16)
+                          : scheme.surfaceContainer,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: selectionMode
+                        ? Icon(
+                            checked
+                                ? Icons.check_circle_rounded
+                                : Icons.radio_button_unchecked_rounded,
+                            size: 20,
+                            color: checked
+                                ? scheme.primary
+                                : scheme.onSurfaceVariant,
+                          )
+                        : Icon(
+                            chat.archived
+                                ? Icons.inventory_2_outlined
+                                : Icons.chat_bubble_outline_rounded,
+                            size: 17,
+                            color: selected
+                                ? scheme.primary
+                                : scheme.onSurfaceVariant,
+                          ),
                   ),
-                  child: Icon(
-                    chat.archived
-                        ? Icons.inventory_2_outlined
-                        : Icons.chat_bubble_outline_rounded,
-                    size: 17,
-                    color: selected ? scheme.primary : scheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              chat.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                chat.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: highlighted
+                                      ? FontWeight.w600
+                                      : FontWeight.w500,
+                                  color: scheme.onSurface,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              _formatChatTime(chat.updatedAt),
                               style: TextStyle(
-                                fontSize: 13.5,
-                                fontWeight: selected
-                                    ? FontWeight.w600
-                                    : FontWeight.w500,
-                                color: scheme.onSurface,
+                                fontSize: 10.5,
+                                color: scheme.onSurfaceVariant.withValues(
+                                  alpha: 0.8,
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            _formatChatTime(chat.updatedAt),
-                            style: TextStyle(
-                              fontSize: 10.5,
-                              color: scheme.onSurfaceVariant.withValues(
-                                alpha: 0.8,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        preview,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          color: scheme.onSurfaceVariant,
+                          ],
                         ),
+                        const SizedBox(height: 2),
+                        Text(
+                          preview,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (chat.pinned ||
+                      generating ||
+                      chat.parentChatId != null) ...[
+                    const SizedBox(width: 6),
+                    if (chat.parentChatId != null)
+                      Icon(
+                        Icons.call_split_rounded,
+                        size: 14,
+                        color: scheme.tertiary,
+                      ),
+                    if (chat.pinned)
+                      Icon(
+                        Icons.push_pin_rounded,
+                        size: 14,
+                        color: scheme.primary,
+                      ),
+                    if (generating) ...[
+                      if (chat.pinned) const SizedBox(width: 5),
+                      const SizedBox(
+                        width: 13,
+                        height: 13,
+                        child: CircularProgressIndicator(strokeWidth: 2),
                       ),
                     ],
-                  ),
-                ),
-                if (chat.pinned || generating || chat.parentChatId != null) ...[
-                  const SizedBox(width: 6),
-                  if (chat.parentChatId != null)
-                    Icon(
-                      Icons.call_split_rounded,
-                      size: 14,
-                      color: scheme.tertiary,
-                    ),
-                  if (chat.pinned)
-                    Icon(
-                      Icons.push_pin_rounded,
-                      size: 14,
-                      color: scheme.primary,
-                    ),
-                  if (generating) ...[
-                    if (chat.pinned) const SizedBox(width: 5),
-                    const SizedBox(
-                      width: 13,
-                      height: 13,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
                   ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+enum _ChatAction {
+  rename,
+  pin,
+  unpin,
+  archive,
+  unarchive,
+  openParent,
+  select,
+  delete,
+}
+
+class _ChatMenuRow extends StatelessWidget {
+  const _ChatMenuRow(this.icon, this.label, {this.color});
+
+  final IconData icon;
+  final String label;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 19, color: color),
+        const SizedBox(width: 12),
+        Text(label, style: TextStyle(color: color)),
+      ],
     );
   }
 }

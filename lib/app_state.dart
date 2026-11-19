@@ -790,11 +790,49 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
+  /// Pins or unpins several chats with a single save and notification.
+  void setPinnedChats(Iterable<ChatSession> chats, bool pinned) {
+    var changed = false;
+    for (final chat in chats) {
+      if (chat.pinned == pinned) continue;
+      chat.pinned = pinned;
+      changed = true;
+    }
+    if (!changed) return;
+    _scheduleSave();
+    notifyListeners();
+  }
+
   void archiveChat(ChatSession chat) {
     if (chat.archived) return;
     chat.archived = true;
     chat.pinned = false;
     if (activeChat?.id == chat.id) {
+      final available = activeChats;
+      activeChat = available.isEmpty ? null : available.first;
+      if (activeChat == null) newChat();
+    }
+    _scheduleSave();
+    notifyListeners();
+  }
+
+  /// Archives or restores several chats at once.
+  void archiveChats(Iterable<ChatSession> chats, {bool archived = true}) {
+    final ids = <String>{};
+    var changed = false;
+    for (final chat in chats) {
+      ids.add(chat.id);
+      if (chat.archived == archived) continue;
+      chat.archived = archived;
+      if (archived) {
+        chat.pinned = false;
+      } else {
+        chat.updatedAt = DateTime.now();
+      }
+      changed = true;
+    }
+    if (!changed) return;
+    if (archived && ids.contains(activeChat?.id)) {
       final available = activeChats;
       activeChat = available.isEmpty ? null : available.first;
       if (activeChat == null) newChat();
@@ -820,6 +858,24 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
     _scheduleSave();
     notifyListeners();
+  }
+
+  /// Deletes several chats and returns how many were removed.
+  int deleteChats(Iterable<ChatSession> chats) {
+    final ids = {for (final chat in chats) chat.id};
+    if (ids.isEmpty) return 0;
+    final before = data.chats.length;
+    data.chats.removeWhere((chat) => ids.contains(chat.id));
+    final removed = before - data.chats.length;
+    if (removed == 0) return 0;
+    if (ids.contains(activeChat?.id)) {
+      final available = activeChats;
+      activeChat = available.isEmpty ? null : available.first;
+      if (activeChat == null) newChat();
+    }
+    _scheduleSave();
+    notifyListeners();
+    return removed;
   }
 
   void clearChat(ChatSession chat) {
