@@ -6,6 +6,7 @@ import '../l10n_text.dart';
 import '../models.dart';
 import '../screens/settings_screen.dart';
 import '../theme.dart';
+import 'export_sheet.dart';
 import 'import_preview_sheet.dart';
 import 'model_picker.dart';
 
@@ -262,24 +263,12 @@ class AppDrawer extends StatelessWidget {
                   dense: true,
                   leading: const Icon(Icons.ios_share_rounded, size: 20),
                   title: const Text(
-                    'Экспорт всех чатов',
+                    'Экспорт',
                     style: TextStyle(fontSize: 13.5),
                   ),
                   onTap: () {
                     if (!embedded) Navigator.of(context).pop();
-                    state.exportChats();
-                  },
-                ),
-                ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.description_outlined, size: 20),
-                  title: const Text(
-                    'Все чаты в Markdown',
-                    style: TextStyle(fontSize: 13.5),
-                  ),
-                  onTap: () {
-                    if (!embedded) Navigator.of(context).pop();
-                    state.exportAllChatsMarkdown();
+                    showExportSheet(context);
                   },
                 ),
               ],

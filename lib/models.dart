@@ -1456,13 +1456,13 @@ class ChatMessage {
     if (activeVersion >= versionCount) activeVersion = 0;
   }
 
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toJson({bool includeAttachments = true}) => {
     'id': id,
     'role': role,
     'content': content,
     if (reasoning.isNotEmpty) 'reasoning': reasoning,
     if (model.isNotEmpty) 'model': model,
-    if (attachments.isNotEmpty)
+    if (includeAttachments && attachments.isNotEmpty)
       'attachments': attachments.map((a) => a.toJson()).toList(),
     if (toolCalls.isNotEmpty)
       'toolCalls': toolCalls.map((call) => call.toJson()).toList(),
@@ -1639,12 +1639,14 @@ class ChatSession {
     updatedAt: updatedAt,
   );
 
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toJson({bool includeAttachments = true}) => {
     'id': id,
     'title': title,
     'serverId': serverId,
     'model': model,
-    'messages': messages.map((m) => m.toJson()).toList(),
+    'messages': messages
+        .map((m) => m.toJson(includeAttachments: includeAttachments))
+        .toList(),
     'temperature': temperature,
     'topP': topP,
     if (topK > 0) 'topK': topK,

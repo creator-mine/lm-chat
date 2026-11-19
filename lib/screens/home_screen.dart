@@ -14,6 +14,7 @@ import '../theme.dart';
 import '../voice_input.dart';
 import '../widgets/chat_drawer.dart';
 import '../widgets/context_indicator.dart';
+import '../widgets/export_sheet.dart';
 import '../widgets/generation_stats_sheet.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/model_picker.dart';
@@ -895,9 +896,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     case 'clear':
                       state.clearChat(current);
                     case 'export':
-                      await state.exportChats(chat: current);
-                    case 'export_md':
-                      await state.exportChatMarkdown(current);
+                      await showExportSheet(context, chat: current);
                     case 'copy':
                       await Clipboard.setData(
                         ClipboardData(text: state.chatToMarkdown(current)),
@@ -926,11 +925,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     value: 'select',
                     child: Text('Выбрать сообщения'),
                   ),
-                  PopupMenuItem(value: 'export', child: Text('Экспорт JSON')),
-                  PopupMenuItem(
-                    value: 'export_md',
-                    child: Text('Экспорт Markdown'),
-                  ),
+                  PopupMenuItem(value: 'export', child: Text('Экспорт…')),
                   PopupMenuDivider(),
                   PopupMenuItem(value: 'delete', child: Text('Удалить чат')),
                 ],

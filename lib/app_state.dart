@@ -12,6 +12,7 @@ import 'package:share_plus/share_plus.dart';
 import 'api.dart';
 import 'app_log.dart';
 import 'custom_font.dart';
+import 'export_options.dart';
 import 'format_utils.dart';
 import 'generation_controller.dart';
 import 'history_store.dart';

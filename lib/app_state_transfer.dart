@@ -269,14 +269,17 @@ extension AppStateTransfer on AppState {
   // ------------------------------------------------------------------ export
 
   /// Human-readable Markdown for copying or sharing one chat.
-  String chatToMarkdown(ChatSession chat) {
+  String chatToMarkdown(
+    ChatSession chat, {
+    ExportOptions options = const ExportOptions(),
+  }) {
     final buffer = StringBuffer('# ${chat.title}\n\n');
     buffer.writeln('_Модель: ${chat.model.isEmpty ? '—' : chat.model}_\n');
     if (chat.systemPrompt.trim().isNotEmpty) {
       buffer.writeln('> System prompt: ${chat.systemPrompt.trim()}\n');
     }
     for (final message in chat.messages) {
-      _writeMessageMarkdown(buffer, message);
+      _writeMessageMarkdown(buffer, message, options);
     }
     return buffer.toString();
   }
@@ -285,7 +288,11 @@ extension AppStateTransfer on AppState {
   ///
   /// The order always follows the chat, even when the user selected messages
   /// from the bottom up, so the export reads like a normal conversation.
-  String messagesToMarkdown(ChatSession chat, Iterable<ChatMessage> messages) {
+  String messagesToMarkdown(
+    ChatSession chat,
+    Iterable<ChatMessage> messages, {
+    ExportOptions options = const ExportOptions(),
+  }) {
     final selectedIds = {for (final message in messages) message.id};
     final selected = chat.messages
         .where((message) => selectedIds.contains(message.id))
@@ -297,18 +304,24 @@ extension AppStateTransfer on AppState {
       '${L10n.tf('из {count}', {'count': chat.messages.length})}_\n',
     );
     for (final message in selected) {
-      _writeMessageMarkdown(buffer, message);
+      _writeMessageMarkdown(buffer, message, options);
     }
     return buffer.toString();
   }
 
-  void _writeMessageMarkdown(StringBuffer buffer, ChatMessage message) {
+  void _writeMessageMarkdown(
+    StringBuffer buffer,
+    ChatMessage message,
+    ExportOptions options,
+  ) {
     if (message.isUser) {
       buffer.writeln('**Вы**\n\n${message.content.trim()}\n');
-      for (final attachment in message.attachments) {
-        buffer.writeln(
-          '_${L10n.tf('Изображение: {name}', {'name': attachment.name.isEmpty ? 'image' : attachment.name})}_\n',
-        );
+      if (options.includeAttachmentNames) {
+        for (final attachment in message.attachments) {
+          buffer.writeln(
+            '_${L10n.tf('Изображение: {name}', {'name': attachment.name.isEmpty ? 'image' : attachment.name})}_\n',
+          );
+        }
       }
       return;
     }
@@ -316,7 +329,8 @@ extension AppStateTransfer on AppState {
         ? ''
         : ' · ${message.displayModel}';
     buffer.writeln('**Ассистент$model**\n');
-    if (message.displayReasoning.trim().isNotEmpty) {
+    if (options.includeReasoning &&
+        message.displayReasoning.trim().isNotEmpty) {
       final reasoning = message.displayReasoning.trim().replaceAll(
         '\n',
         '\n> ',
@@ -324,7 +338,7 @@ extension AppStateTransfer on AppState {
       buffer.writeln('> **Размышления**\n>\n> $reasoning\n');
     }
     buffer.writeln('${message.displayContent.trim()}\n');
-    if (message.displayCompletionTokens != null) {
+    if (options.includeStats && message.displayCompletionTokens != null) {
       final speed = message.displayTokensPerSecond;
       buffer.writeln(
         '_${message.displayCompletionTokens} токенов'
@@ -336,31 +350,69 @@ extension AppStateTransfer on AppState {
   }
 
   /// Human-readable Markdown for the whole history.
-  String allChatsToMarkdown() {
+  String allChatsToMarkdown({ExportOptions options = const ExportOptions()}) {
     final buffer = StringBuffer('# LM Chat — история\n\n');
-    for (final chat in chats) {
+    for (final chat in _chatsForExport(options)) {
       buffer.writeln('---\n');
       if (chat.archived) buffer.writeln('_Архив_\n');
-      buffer.write(chatToMarkdown(chat));
+      buffer.write(chatToMarkdown(chat, options: options));
       buffer.writeln();
     }
     return buffer.toString();
   }
 
-  Future<File?> exportAllChatsMarkdown() => _shareTextFile(
-    'lm_chat_all',
-    'md',
-    'text/markdown',
-    'LM Chat — все чаты',
-    allChatsToMarkdown(),
-  );
+  /// Chats selected by the export scope and archive filter.
+  List<ChatSession> _chatsForExport(ExportOptions options) {
+    if (options.scope == ExportScope.currentChat) {
+      final chat = activeChat;
+      return chat == null ? const [] : [chat];
+    }
+    return [
+      for (final chat in chats)
+        if (options.includeArchived || !chat.archived) chat,
+    ];
+  }
 
-  Future<File?> exportChatMarkdown(ChatSession chat) => _shareTextFile(
+  /// Approximate size of the image attachments that will be exported.
+  ///
+  /// Base64 stores three bytes in four characters, so this is cheap to
+  /// compute without encoding anything.
+  int exportAttachmentBytes(ExportOptions options) {
+    var total = 0;
+    for (final chat in _chatsForExport(options)) {
+      for (final message in chat.messages) {
+        for (final attachment in message.attachments) {
+          total += attachment.data.length * 3 ~/ 4;
+        }
+      }
+    }
+    return total;
+  }
+
+  Future<File?> exportAllChatsMarkdown({
+    ExportOptions options = const ExportOptions(),
+  }) {
+    final current = options.scope == ExportScope.currentChat;
+    final chat = current ? activeChat : null;
+    final prefix = current ? 'lm_chat_${chat?.id ?? 'chat'}' : 'lm_chat_all';
+    return _shareTextFile(
+      prefix,
+      'md',
+      'text/markdown',
+      current && chat != null ? chat.title : 'LM Chat — все чаты',
+      allChatsToMarkdown(options: options),
+    );
+  }
+
+  Future<File?> exportChatMarkdown(
+    ChatSession chat, {
+    ExportOptions options = const ExportOptions(),
+  }) => _shareTextFile(
     'lm_chat_${chat.id}',
     'md',
     'text/markdown',
     chat.title,
-    chatToMarkdown(chat),
+    chatToMarkdown(chat, options: options),
   );
 
   Future<File?> exportMessagesMarkdown(
@@ -392,6 +444,25 @@ extension AppStateTransfer on AppState {
         'messages': selected.map((message) => message.toJson()).toList(),
       },
     );
+  }
+
+  /// Runs the export selected in the export sheet.
+  Future<File?> exportWithOptions(
+    ExportOptions options, {
+    ChatSession? chat,
+  }) async {
+    if (options.scope == ExportScope.currentChat) {
+      final target = chat ?? activeChat;
+      if (target == null) return null;
+      if (options.format == ExportFormat.markdown) {
+        return exportChatMarkdown(target, options: options);
+      }
+      return exportChats(chat: target, options: options);
+    }
+    if (options.format == ExportFormat.markdown) {
+      return exportAllChatsMarkdown(options: options);
+    }
+    return exportChats(options: options);
   }
 
   String _exportStamp() =>
@@ -460,26 +531,43 @@ extension AppStateTransfer on AppState {
     }
   }
 
-  Future<File?> exportChats({ChatSession? chat}) {
-    final payload = chat != null
-        ? chat.toJson()
-        : {
-            'app': 'LM Chat',
-            'exportedAt': DateTime.now().toIso8601String(),
-            // Export leaves the device via "Share": never include API keys
-            // or bridge tokens.
-            'servers': data.servers
-                .map((s) => s.toJson(includeSecrets: false))
-                .toList(),
-            'chats': data.chats.map((c) => c.toJson()).toList(),
-            'promptTemplates': data.promptTemplates
-                .map((t) => t.toJson())
-                .toList(),
-          };
+  /// JSON document produced by the export sheet.
+  Map<String, dynamic> exportPayload({
+    ChatSession? chat,
+    ExportOptions options = const ExportOptions(),
+  }) {
+    final target =
+        chat ?? (options.scope == ExportScope.currentChat ? activeChat : null);
+    if (target != null) {
+      return target.toJson(includeAttachments: options.includeAttachments);
+    }
+    return {
+      'app': 'LM Chat',
+      'exportedAt': DateTime.now().toIso8601String(),
+      // Export leaves the device via "Share": never include API keys
+      // or bridge tokens.
+      if (options.includeServers)
+        'servers': data.servers
+            .map((s) => s.toJson(includeSecrets: false))
+            .toList(),
+      'chats': _chatsForExport(options)
+          .map((c) => c.toJson(includeAttachments: options.includeAttachments))
+          .toList(),
+      if (options.includeTemplates)
+        'promptTemplates': data.promptTemplates.map((t) => t.toJson()).toList(),
+    };
+  }
+
+  Future<File?> exportChats({
+    ChatSession? chat,
+    ExportOptions options = const ExportOptions(),
+  }) {
+    final target =
+        chat ?? (options.scope == ExportScope.currentChat ? activeChat : null);
     return _shareJson(
-      'lm_chat_${chat?.id ?? 'all'}',
-      chat != null ? chat.title : 'LM Chat — экспорт чатов',
-      payload,
+      'lm_chat_${target?.id ?? 'all'}',
+      target != null ? target.title : 'LM Chat — экспорт чатов',
+      exportPayload(chat: target, options: options),
     );
   }
 
