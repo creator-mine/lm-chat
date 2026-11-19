@@ -16,6 +16,8 @@ import '../widgets/chat_drawer.dart';
 import '../widgets/context_indicator.dart';
 import '../widgets/export_sheet.dart';
 import '../widgets/generation_stats_sheet.dart';
+import '../widgets/import_preview_sheet.dart';
+import '../widgets/import_sheet.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/model_picker.dart';
 import '../widgets/model_settings_sheet.dart';
@@ -494,6 +496,73 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         }
       }
     }
+  }
+
+  Future<void> _importChats() async {
+    final scaffold = _scaffoldKey.currentState;
+    if (scaffold?.isDrawerOpen ?? false) scaffold!.closeDrawer();
+    final options = await showImportSheet(context);
+    if (options == null || !mounted) return;
+    final state = context.read<AppState>();
+    final preview = await state.pickImportPreview();
+    if (!mounted || preview.cancelled) return;
+    if (!preview.ok) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text(preview.error ?? 'Не удалось прочитать файл')),
+        );
+      return;
+    }
+    final effectivePreview = options.includeArchived
+        ? preview
+        : ImportPreview(
+            servers: preview.servers,
+            chats: [
+              for (final chat in preview.chats)
+                if (!chat.archived) chat,
+            ],
+            templates: preview.templates,
+          );
+    if (effectivePreview.chats.isEmpty) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('В файле нет подходящих чатов')),
+        );
+      return;
+    }
+    final selected = await showImportPreview(
+      context,
+      effectivePreview,
+      options: options,
+    );
+    if (!mounted || selected == null || selected.isEmpty) return;
+    final result = state.importPreview(
+      effectivePreview,
+      selectedChats: selected,
+      options: options,
+    );
+    final parts = [
+      if (result.chats > 0)
+        L10n.tf('Импортировано чатов: {count}', {'count': result.chats}),
+      if (result.servers > 0)
+        L10n.tf('серверов: {count}', {'count': result.servers}),
+      if (result.templates > 0)
+        L10n.tf('промптов: {count}', {'count': result.templates}),
+      if (result.skipped > 0)
+        L10n.tf('пропущено: {count}', {'count': result.skipped}),
+    ];
+    final message = result.error ?? parts.join(', ');
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            message.isEmpty ? L10n.t('Импортировано чатов: 0') : message,
+          ),
+        ),
+      );
   }
 
   Future<void> _rename(ChatSession chat) async {
@@ -1231,6 +1300,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 child: AppDrawer(
                   chatListKey: _chatListKey,
                   onNewChat: () => _newChat(closeDrawer: false),
+                  onImport: _importChats,
                   onDeleteChat: _confirmDelete,
                   onRenameChat: _rename,
                   onCollapse: () => state.setSidebarCollapsed(true),
@@ -1257,6 +1327,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       drawer: AppDrawer(
         chatListKey: _chatListKey,
         onNewChat: () => _newChat(closeDrawer: true),
+        onImport: _importChats,
         onDeleteChat: _confirmDelete,
         onRenameChat: _rename,
       ),

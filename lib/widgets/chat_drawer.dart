@@ -7,7 +7,6 @@ import '../models.dart';
 import '../screens/settings_screen.dart';
 import '../theme.dart';
 import 'export_sheet.dart';
-import 'import_preview_sheet.dart';
 import 'model_picker.dart';
 
 class SidebarResizer extends StatelessWidget {
@@ -51,6 +50,7 @@ class AppDrawer extends StatelessWidget {
   const AppDrawer({
     super.key,
     required this.onNewChat,
+    required this.onImport,
     required this.onDeleteChat,
     required this.onRenameChat,
     this.onCollapse,
@@ -60,6 +60,7 @@ class AppDrawer extends StatelessWidget {
   });
 
   final VoidCallback onNewChat;
+  final Future<void> Function() onImport;
   final Future<void> Function(ChatSession) onDeleteChat;
   final Future<void> Function(ChatSession) onRenameChat;
 
@@ -214,50 +215,7 @@ class AppDrawer extends StatelessWidget {
                     'Объединить с текущими чатами из JSON',
                     style: TextStyle(fontSize: 11),
                   ),
-                  onTap: () async {
-                    if (!embedded) Navigator.of(context).pop();
-                    final preview = await state.pickImportPreview();
-                    if (!context.mounted) return;
-                    if (preview.cancelled) return;
-                    if (!preview.ok) {
-                      ScaffoldMessenger.of(context)
-                        ..hideCurrentSnackBar()
-                        ..showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              preview.error ?? 'Не удалось прочитать файл',
-                            ),
-                          ),
-                        );
-                      return;
-                    }
-                    final selected = await showImportPreview(context, preview);
-                    if (!context.mounted ||
-                        selected == null ||
-                        selected.isEmpty) {
-                      return;
-                    }
-                    final result = state.importPreview(
-                      preview,
-                      selectedChats: selected,
-                    );
-                    final extra = [
-                      if (result.servers > 0)
-                        L10n.tf('серверов: {count}', {'count': result.servers}),
-                      if (result.templates > 0)
-                        L10n.tf('промптов: {count}', {
-                          'count': result.templates,
-                        }),
-                    ].join(', ');
-                    final message =
-                        result.error ??
-                        '${L10n.tf('Импортировано чатов: {count}', {'count': result.chats})}'
-                            '${extra.isEmpty ? '' : ', $extra'}';
-                    final messenger = ScaffoldMessenger.of(context);
-                    messenger
-                      ..hideCurrentSnackBar()
-                      ..showSnackBar(SnackBar(content: Text(message)));
-                  },
+                  onTap: onImport,
                 ),
                 ListTile(
                   dense: true,

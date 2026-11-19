@@ -16,6 +16,7 @@ import 'export_options.dart';
 import 'format_utils.dart';
 import 'generation_controller.dart';
 import 'history_store.dart';
+import 'import_options.dart';
 import 'keep_alive.dart';
 import 'l10n.dart';
 import 'model_catalog.dart';
@@ -66,6 +67,7 @@ class ImportResult {
     this.chats = 0,
     this.servers = 0,
     this.templates = 0,
+    this.skipped = 0,
     this.cancelled = false,
     this.error,
   });
@@ -73,6 +75,7 @@ class ImportResult {
   final int chats;
   final int servers;
   final int templates;
+  final int skipped;
   final bool cancelled;
   final String? error;
 

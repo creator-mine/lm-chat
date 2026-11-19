@@ -104,6 +104,21 @@ class L10n {
     'Сообщений: {count}': 'Messages: {count}',
     'Изображения: {size}': 'Images: {size}',
     'Импорт истории': 'Import history',
+    'История, серверы и шаблоны промптов из JSON-файла LM Chat.':
+        'History, servers and prompt templates from an LM Chat JSON file.',
+    'Что импортировать': 'What to import',
+    'Архивные чаты': 'Archived chats',
+    'Пропускать уже существующие чаты': 'Skip chats that already exist',
+    'Не создавать копии при повторном импорте':
+        'Do not create copies on repeated import',
+    'Выбрать файл JSON': 'Choose JSON file',
+    'После выбора файла можно отметить нужные чаты.':
+        'After choosing a file you can select the chats to import.',
+    'пропущено: {count}': 'skipped: {count}',
+    'Все выбранные чаты уже есть в истории':
+        'The selected chats are already in history',
+    'В файле нет подходящих чатов': 'The file has no suitable chats',
+    'Импортировано чатов: 0': 'Imported chats: 0',
     'Объединить с текущими чатами из JSON':
         'Merge with current chats from JSON',
     'Настройки': 'Settings',

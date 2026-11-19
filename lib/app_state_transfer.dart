@@ -135,13 +135,19 @@ extension AppStateTransfer on AppState {
 
   /// Commits a parsed preview. [selectedChats] contains 0-based indexes into
   /// [ImportPreview.chats]; null means "all chats".
-  ImportResult importPreview(ImportPreview preview, {Set<int>? selectedChats}) {
+  ImportResult importPreview(
+    ImportPreview preview, {
+    Set<int>? selectedChats,
+    ImportOptions options = const ImportOptions(),
+  }) {
     if (!preview.ok) return ImportResult(error: preview.error);
     final selected =
         selectedChats ?? {for (var i = 0; i < preview.chats.length; i++) i};
     final chatsToImport = <ChatSession>[
       for (var i = 0; i < preview.chats.length; i++)
-        if (selected.contains(i)) preview.chats[i],
+        if (selected.contains(i) &&
+            (options.includeArchived || !preview.chats[i].archived))
+          preview.chats[i],
     ];
     if (chatsToImport.isEmpty) {
       return const ImportResult(error: 'Не выбран ни один чат');
@@ -149,7 +155,10 @@ extension AppStateTransfer on AppState {
 
     try {
       final newTemplates = <PromptTemplate>[];
-      for (final template in preview.templates) {
+      final sourceTemplates = options.includeTemplates
+          ? preview.templates
+          : const <PromptTemplate>[];
+      for (final template in sourceTemplates) {
         final idTaken =
             data.promptTemplates.any((t) => t.id == template.id) ||
             newTemplates.any((t) => t.id == template.id);
@@ -166,7 +175,10 @@ extension AppStateTransfer on AppState {
 
       final serverMap = <String, String>{};
       final newServers = <ServerConfig>[];
-      for (final incoming in preview.servers) {
+      final sourceServers = options.includeServers
+          ? preview.servers
+          : const <ServerConfig>[];
+      for (final incoming in sourceServers) {
         final server = incoming.clone()
           ..apiKey = ''
           ..bridgeToken = ''
@@ -211,7 +223,14 @@ extension AppStateTransfer on AppState {
 
       final importedIds = <String>{};
       final imported = <ChatSession>[];
+      var skipped = 0;
       for (final chat in chatsToImport) {
+        if (options.skipExisting &&
+            (data.chats.any((c) => c.id == chat.id) ||
+                importedIds.contains(chat.id))) {
+          skipped++;
+          continue;
+        }
         final fallbackServerId = data.servers.isNotEmpty
             ? data.servers.first.id
             : newServers.isNotEmpty
@@ -231,6 +250,13 @@ extension AppStateTransfer on AppState {
         imported.add(target);
       }
 
+      if (imported.isEmpty) {
+        return ImportResult(
+          skipped: skipped,
+          error: 'Все выбранные чаты уже есть в истории',
+        );
+      }
+
       // Commit only after the whole selection parsed successfully.
       data.servers.addAll(newServers);
       data.chats.addAll(imported);
@@ -248,14 +274,16 @@ extension AppStateTransfer on AppState {
       _notifyTransfer();
       AppLog.instance.info(
         'Импортировано чатов: ${imported.length}',
-        detail: importedServers == 0 && newTemplates.isEmpty
+        detail: importedServers == 0 && newTemplates.isEmpty && skipped == 0
             ? null
-            : 'серверов: $importedServers, промптов: ${newTemplates.length}',
+            : 'серверов: $importedServers, промптов: ${newTemplates.length}'
+                  '${skipped == 0 ? '' : ', пропущено: $skipped'}',
       );
       return ImportResult(
         chats: imported.length,
         servers: importedServers,
         templates: newTemplates.length,
+        skipped: skipped,
       );
     } catch (error) {
       AppLog.instance.error(

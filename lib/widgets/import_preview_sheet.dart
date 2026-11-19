@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' hide Text;
 
 import '../app_state.dart';
+import '../import_options.dart';
 import '../l10n_text.dart';
 
 /// Asks which chats from an imported JSON should be added.
@@ -9,20 +10,22 @@ import '../l10n_text.dart';
 /// [ImportPreview.chats].
 Future<Set<int>?> showImportPreview(
   BuildContext context,
-  ImportPreview preview,
-) {
+  ImportPreview preview, {
+  ImportOptions options = const ImportOptions(),
+}) {
   return showModalBottomSheet<Set<int>>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
-    builder: (_) => _ImportPreviewSheet(preview: preview),
+    builder: (_) => _ImportPreviewSheet(preview: preview, options: options),
   );
 }
 
 class _ImportPreviewSheet extends StatefulWidget {
-  const _ImportPreviewSheet({required this.preview});
+  const _ImportPreviewSheet({required this.preview, required this.options});
 
   final ImportPreview preview;
+  final ImportOptions options;
 
   @override
   State<_ImportPreviewSheet> createState() => _ImportPreviewSheetState();
@@ -85,16 +88,20 @@ class _ImportPreviewSheetState extends State<_ImportPreviewSheet> {
               }),
               style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant),
             ),
-            if (preview.servers.isNotEmpty || preview.templates.isNotEmpty)
+            if ((widget.options.includeServers && preview.servers.isNotEmpty) ||
+                (widget.options.includeTemplates &&
+                    preview.templates.isNotEmpty))
               Padding(
                 padding: const EdgeInsets.only(top: 2),
                 child: Text(
                   [
-                    if (preview.servers.isNotEmpty)
+                    if (widget.options.includeServers &&
+                        preview.servers.isNotEmpty)
                       L10n.tf('серверов: {count}', {
                         'count': preview.servers.length,
                       }),
-                    if (preview.templates.isNotEmpty)
+                    if (widget.options.includeTemplates &&
+                        preview.templates.isNotEmpty)
                       L10n.tf('промптов: {count}', {
                         'count': preview.templates.length,
                       }),
