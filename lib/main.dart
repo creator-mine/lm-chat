@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 
@@ -83,14 +84,21 @@ class LmChatApp extends StatelessWidget {
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       builder: (context, child) {
         final media = MediaQuery.of(context);
-        return MediaQuery(
-          data: media.copyWith(
-            textScaler: _AppTextScaler(media.textScaler, fontScale),
-          ),
-          child: SyncPairingHost(
-            service: context.read<AppState>().sync,
-            navigatorKey: navigatorKey,
-            child: _TitleBarSync(child: child!),
+        final theme = Theme.of(context);
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: _systemUiStyle(theme),
+          child: ColoredBox(
+            color: theme.scaffoldBackgroundColor,
+            child: MediaQuery(
+              data: media.copyWith(
+                textScaler: _AppTextScaler(media.textScaler, fontScale),
+              ),
+              child: SyncPairingHost(
+                service: context.read<AppState>().sync,
+                navigatorKey: navigatorKey,
+                child: _TitleBarSync(child: child!),
+              ),
+            ),
           ),
         );
       },
@@ -111,6 +119,24 @@ class _TitleBarSync extends StatelessWidget {
     unawaited(WindowChrome.setDarkTitleBar(dark));
     return child;
   }
+}
+
+/// Keeps the Android system bars in tune with the in-app theme, so the
+/// navigation bar never shows a white strip under a dark app.
+SystemUiOverlayStyle _systemUiStyle(ThemeData theme) {
+  final dark = theme.brightness == Brightness.dark;
+  final background = theme.scaffoldBackgroundColor;
+  final icons = dark ? Brightness.light : Brightness.dark;
+  return SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: icons,
+    statusBarBrightness: theme.brightness,
+    systemStatusBarContrastEnforced: false,
+    systemNavigationBarColor: background,
+    systemNavigationBarDividerColor: background,
+    systemNavigationBarIconBrightness: icons,
+    systemNavigationBarContrastEnforced: false,
+  );
 }
 
 /// Applies the in-app text size on top of the system accessibility scale.

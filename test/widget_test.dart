@@ -563,7 +563,7 @@ void main() {
     expect(state.exceedsContext(chat, 'x' * 1000), isTrue);
   });
 
-  test('chat can be exported as markdown and csv', () {
+  test('chat can be exported as markdown', () {
     final state = AppState();
     final chat = ChatSession(
       id: 'chat',
@@ -590,12 +590,6 @@ void main() {
     expect(markdown, contains('**Вы**'));
     expect(markdown, contains('здравствуйте'));
     expect(markdown, contains('первый токен'));
-
-    final csv = state.chatStatsCsv(chat);
-    expect(csv, contains('created_at'));
-    expect(csv, contains('model'));
-    expect(csv, contains('1/1'));
-    expect(csv, contains('10.00'));
   });
 
   test('background generation defaults to on and can be turned off', () {

@@ -125,7 +125,6 @@ class L10n {
     'Скопировано сообщений: {count}': 'Copied messages: {count}',
     'Экспорт JSON': 'Export JSON',
     'Экспорт Markdown': 'Export Markdown',
-    'Экспорт статистики CSV': 'Export statistics CSV',
     'Отправить': 'Send',
     'Остановить': 'Stop',
     'Сохранить': 'Save',

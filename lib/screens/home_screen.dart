@@ -898,8 +898,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       await state.exportChats(chat: current);
                     case 'export_md':
                       await state.exportChatMarkdown(current);
-                    case 'export_csv':
-                      await state.exportChatStats(current);
                     case 'copy':
                       await Clipboard.setData(
                         ClipboardData(text: state.chatToMarkdown(current)),
@@ -932,10 +930,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   PopupMenuItem(
                     value: 'export_md',
                     child: Text('Экспорт Markdown'),
-                  ),
-                  PopupMenuItem(
-                    value: 'export_csv',
-                    child: Text('Экспорт статистики CSV'),
                   ),
                   PopupMenuDivider(),
                   PopupMenuItem(value: 'delete', child: Text('Удалить чат')),

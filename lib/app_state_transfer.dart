@@ -355,72 +355,12 @@ extension AppStateTransfer on AppState {
     allChatsToMarkdown(),
   );
 
-  /// CSV with one row per saved answer variant.
-  String chatStatsCsv(ChatSession chat) {
-    final rows = <List<String>>[
-      [
-        'created_at',
-        'role',
-        'model',
-        'version',
-        'prompt_tokens',
-        'completion_tokens',
-        'total_tokens',
-        'generation_ms',
-        'first_token_ms',
-        'tokens_per_second',
-        'edited',
-        'error',
-      ],
-    ];
-    for (final message in chat.messages) {
-      if (message.role != 'assistant') continue;
-      for (var number = 1; number <= message.versionCount; number++) {
-        final version = message.variantAt(number);
-        final speed =
-            version.completionTokens != null &&
-                version.generationMs != null &&
-                version.generationMs! > 0
-            ? version.completionTokens! * 1000 / version.generationMs!
-            : null;
-        rows.add([
-          version.createdAt.toIso8601String(),
-          message.role,
-          version.model,
-          '$number/${message.versionCount}',
-          version.promptTokens?.toString() ?? '',
-          version.completionTokens?.toString() ?? '',
-          version.totalTokens?.toString() ?? '',
-          version.generationMs?.toString() ?? '',
-          version.firstTokenMs?.toString() ?? '',
-          speed?.toStringAsFixed(2) ?? '',
-          version.editedAt == null ? 'no' : 'yes',
-          version.error ?? '',
-        ]);
-      }
-    }
-    return rows.map((row) => row.map(_csvCell).join(',')).join('\r\n');
-  }
-
-  String _csvCell(String value) {
-    if (!value.contains(RegExp(r'[",\r\n]'))) return value;
-    return '"${value.replaceAll('"', '""')}"';
-  }
-
   Future<File?> exportChatMarkdown(ChatSession chat) => _shareTextFile(
     'lm_chat_${chat.id}',
     'md',
     'text/markdown',
     chat.title,
     chatToMarkdown(chat),
-  );
-
-  Future<File?> exportChatStats(ChatSession chat) => _shareTextFile(
-    'lm_chat_stats_${chat.id}',
-    'csv',
-    'text/csv',
-    '${chat.title} — статистика',
-    chatStatsCsv(chat),
   );
 
   Future<File?> exportMessagesMarkdown(
