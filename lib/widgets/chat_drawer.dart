@@ -767,6 +767,7 @@ class ChatTile extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 2),
       child: GestureDetector(
         onLongPressStart: (details) => onLongPress(details.globalPosition),
+        onSecondaryTapUp: (details) => onLongPress(details.globalPosition),
         child: Material(
           color: highlighted
               ? scheme.primary.withValues(alpha: selectionMode ? 0.16 : 0.10)

@@ -604,7 +604,7 @@ flutter build windows --release
 & "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" "installer\lm_chat.iss"
 ```
 
-Результат: `dist/lm-chat-setup-1.16.6.exe`.
+Результат: `dist/lm-chat-setup-1.16.7.exe`.
 
 - Устанавливается только для текущего пользователя, без UAC, в
   `%LOCALAPPDATA%\Programs\LM Chat`.

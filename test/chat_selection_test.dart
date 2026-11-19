@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lm_chat/app_state.dart';
@@ -95,6 +96,33 @@ void main() {
 
     state.archiveChats([a], archived: false);
     expect(a.archived, isFalse);
+  });
+
+  testWidgets('right click opens the same chat menu', (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final state = AppState();
+    addTearDown(state.dispose);
+    final chat = _chat('A');
+    state.data.chats.add(chat);
+    state.activeChat = chat;
+
+    await _pumpHome(tester, state);
+
+    final tile = find
+        .ancestor(of: find.text('A'), matching: find.byType(ChatTile))
+        .first;
+    await tester.tap(tile, buttons: kSecondaryButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Переименовать'), findsOneWidget);
+    expect(find.text('Выбрать несколько'), findsOneWidget);
+
+    await tester.tapAt(const Offset(5, 5));
+    await tester.pumpAndSettle();
   });
 
   testWidgets('long press opens menu and selects several chats for deletion', (
