@@ -98,6 +98,38 @@ void main() {
     expect(a.archived, isFalse);
   });
 
+  testWidgets('holding the chat for 250 ms opens the menu', (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final state = AppState();
+    addTearDown(state.dispose);
+    final chat = _chat('A');
+    state.data.chats.add(chat);
+    state.activeChat = chat;
+
+    await _pumpHome(tester, state);
+
+    final tile = find
+        .ancestor(of: find.text('A'), matching: find.byType(ChatTile))
+        .first;
+    final gesture = await tester.startGesture(tester.getCenter(tile));
+
+    await tester.pump(const Duration(milliseconds: 150));
+    expect(find.text('Переименовать'), findsNothing);
+
+    await tester.pump(const Duration(milliseconds: 120));
+    await tester.pumpAndSettle();
+    expect(find.text('Переименовать'), findsOneWidget);
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+    await tester.tapAt(const Offset(5, 5));
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('right click opens the same chat menu', (tester) async {
     tester.view.physicalSize = const Size(1280, 800);
     tester.view.devicePixelRatio = 1;

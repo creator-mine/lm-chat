@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart' hide Text;
 import 'package:provider/provider.dart';
 
@@ -737,6 +738,10 @@ class ChatListState extends State<ChatList> {
   }
 }
 
+/// Long press delay for the chat context menu. Faster than Flutter's default
+/// 500 ms so the menu feels immediate on phones.
+const Duration kChatLongPressDuration = Duration(milliseconds: 250);
+
 class ChatTile extends StatelessWidget {
   const ChatTile({
     super.key,
@@ -765,122 +770,135 @@ class ChatTile extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 2),
-      child: GestureDetector(
-        onLongPressStart: (details) => onLongPress(details.globalPosition),
-        onSecondaryTapUp: (details) => onLongPress(details.globalPosition),
-        child: Material(
-          color: highlighted
-              ? scheme.primary.withValues(alpha: selectionMode ? 0.16 : 0.10)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-          child: InkWell(
+      child: RawGestureDetector(
+        gestures: <Type, GestureRecognizerFactory>{
+          LongPressGestureRecognizer:
+              GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
+                () => LongPressGestureRecognizer(
+                  duration: kChatLongPressDuration,
+                ),
+                (recognizer) {
+                  recognizer.onLongPressStart = (details) =>
+                      onLongPress(details.globalPosition);
+                },
+              ),
+        },
+        child: GestureDetector(
+          onSecondaryTapUp: (details) => onLongPress(details.globalPosition),
+          child: Material(
+            color: highlighted
+                ? scheme.primary.withValues(alpha: selectionMode ? 0.16 : 0.10)
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
-              child: Row(
-                children: [
-                  Container(
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      color: highlighted
-                          ? scheme.primary.withValues(alpha: 0.16)
-                          : scheme.surfaceContainer,
-                      borderRadius: BorderRadius.circular(10),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: highlighted
+                            ? scheme.primary.withValues(alpha: 0.16)
+                            : scheme.surfaceContainer,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: selectionMode
+                          ? Icon(
+                              checked
+                                  ? Icons.check_circle_rounded
+                                  : Icons.radio_button_unchecked_rounded,
+                              size: 20,
+                              color: checked
+                                  ? scheme.primary
+                                  : scheme.onSurfaceVariant,
+                            )
+                          : Icon(
+                              chat.archived
+                                  ? Icons.inventory_2_outlined
+                                  : Icons.chat_bubble_outline_rounded,
+                              size: 17,
+                              color: selected
+                                  ? scheme.primary
+                                  : scheme.onSurfaceVariant,
+                            ),
                     ),
-                    child: selectionMode
-                        ? Icon(
-                            checked
-                                ? Icons.check_circle_rounded
-                                : Icons.radio_button_unchecked_rounded,
-                            size: 20,
-                            color: checked
-                                ? scheme.primary
-                                : scheme.onSurfaceVariant,
-                          )
-                        : Icon(
-                            chat.archived
-                                ? Icons.inventory_2_outlined
-                                : Icons.chat_bubble_outline_rounded,
-                            size: 17,
-                            color: selected
-                                ? scheme.primary
-                                : scheme.onSurfaceVariant,
-                          ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                chat.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  chat.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight: highlighted
+                                        ? FontWeight.w600
+                                        : FontWeight.w500,
+                                    color: scheme.onSurface,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                _formatChatTime(chat.updatedAt),
                                 style: TextStyle(
-                                  fontSize: 13.5,
-                                  fontWeight: highlighted
-                                      ? FontWeight.w600
-                                      : FontWeight.w500,
-                                  color: scheme.onSurface,
+                                  fontSize: 10.5,
+                                  color: scheme.onSurfaceVariant.withValues(
+                                    alpha: 0.8,
+                                  ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              _formatChatTime(chat.updatedAt),
-                              style: TextStyle(
-                                fontSize: 10.5,
-                                color: scheme.onSurfaceVariant.withValues(
-                                  alpha: 0.8,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          preview,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            color: scheme.onSurfaceVariant,
+                            ],
                           ),
+                          const SizedBox(height: 2),
+                          Text(
+                            preview,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (chat.pinned ||
+                        generating ||
+                        chat.parentChatId != null) ...[
+                      const SizedBox(width: 6),
+                      if (chat.parentChatId != null)
+                        Icon(
+                          Icons.call_split_rounded,
+                          size: 14,
+                          color: scheme.tertiary,
+                        ),
+                      if (chat.pinned)
+                        Icon(
+                          Icons.push_pin_rounded,
+                          size: 14,
+                          color: scheme.primary,
+                        ),
+                      if (generating) ...[
+                        if (chat.pinned) const SizedBox(width: 5),
+                        const SizedBox(
+                          width: 13,
+                          height: 13,
+                          child: CircularProgressIndicator(strokeWidth: 2),
                         ),
                       ],
-                    ),
-                  ),
-                  if (chat.pinned ||
-                      generating ||
-                      chat.parentChatId != null) ...[
-                    const SizedBox(width: 6),
-                    if (chat.parentChatId != null)
-                      Icon(
-                        Icons.call_split_rounded,
-                        size: 14,
-                        color: scheme.tertiary,
-                      ),
-                    if (chat.pinned)
-                      Icon(
-                        Icons.push_pin_rounded,
-                        size: 14,
-                        color: scheme.primary,
-                      ),
-                    if (generating) ...[
-                      if (chat.pinned) const SizedBox(width: 5),
-                      const SizedBox(
-                        width: 13,
-                        height: 13,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
                     ],
                   ],
-                ],
+                ),
               ),
             ),
           ),
