@@ -1635,6 +1635,7 @@ class ChatSession {
     this.launch = const LaunchSettings(),
     this.pinned = false,
     this.archived = false,
+    this.sortOrder,
     this.parentChatId,
     this.branchFromMessageId,
     this.branchFromVersion,
@@ -1666,6 +1667,11 @@ class ChatSession {
   bool pinned;
   bool archived;
 
+  /// Position in the manual chat order. Null until the user reorders chats for
+  /// the first time; then [AppData.manualChatOrder] is enabled and every chat
+  /// gets a stable number.
+  int? sortOrder;
+
   /// Chat this one was forked from. Null for a root chat.
   final String? parentChatId;
 
@@ -1696,6 +1702,7 @@ class ChatSession {
     launch: launch,
     pinned: pinned,
     archived: archived,
+    sortOrder: sortOrder,
     parentChatId: parentChatId,
     branchFromMessageId: branchFromMessageId,
     branchFromVersion: branchFromVersion,
@@ -1721,6 +1728,7 @@ class ChatSession {
     'launch': launch.toJson(),
     if (pinned) 'pinned': true,
     if (archived) 'archived': true,
+    if (sortOrder != null) 'sortOrder': sortOrder,
     if (parentChatId != null && parentChatId!.isNotEmpty)
       'parentChatId': parentChatId,
     if (branchFromMessageId != null && branchFromMessageId!.isNotEmpty)
@@ -1761,6 +1769,7 @@ class ChatSession {
         : const LaunchSettings(),
     pinned: json['pinned'] as bool? ?? false,
     archived: json['archived'] as bool? ?? false,
+    sortOrder: (json['sortOrder'] as num?)?.toInt(),
     parentChatId: (json['parentChatId'] as String?)?.trim().isEmpty == true
         ? null
         : json['parentChatId'] as String?,
@@ -1855,7 +1864,7 @@ class SchemaTooNewException implements Exception {
 
 class AppData {
   /// Increment when the on-disk shape changes in a way that needs migration.
-  static const int currentSchemaVersion = 17;
+  static const int currentSchemaVersion = 18;
 
   /// Validates the on-disk schema and stamps it with the current version.
   ///
@@ -1888,6 +1897,7 @@ class AppData {
     ),
     this.defaultLaunchPresetId = '',
     List<LaunchPreset>? launchPresets,
+    this.manualChatOrder = false,
     this.setupDone = false,
     this.backgroundGeneration = true,
     this.autoCheckUpdates = true,
@@ -1953,6 +1963,10 @@ class AppData {
   /// Preset that [defaultLaunch] currently comes from. Empty means the user
   /// changed the defaults by hand.
   String defaultLaunchPresetId;
+
+  /// Once the user reorders the sidebar, chats keep that order and no longer
+  /// jump to the top when they receive a message.
+  bool manualChatOrder;
   bool setupDone;
 
   /// Keep the process awake with a foreground service while an answer is being
@@ -2003,6 +2017,7 @@ class AppData {
       'launchPresets': launchPresets.map((preset) => preset.toJson()).toList(),
     if (defaultLaunchPresetId.isNotEmpty)
       'defaultLaunchPresetId': defaultLaunchPresetId,
+    if (manualChatOrder) 'manualChatOrder': true,
     'setupDone': setupDone,
     'backgroundGeneration': backgroundGeneration,
     'autoCheckUpdates': autoCheckUpdates,
@@ -2064,6 +2079,7 @@ class AppData {
             .map(LaunchPreset.fromJson)
             .toList() ??
         [],
+    manualChatOrder: json['manualChatOrder'] as bool? ?? false,
     setupDone: json['setupDone'] as bool? ?? false,
     backgroundGeneration: json['backgroundGeneration'] as bool? ?? true,
     autoCheckUpdates: json['autoCheckUpdates'] as bool? ?? true,

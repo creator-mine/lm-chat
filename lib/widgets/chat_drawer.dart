@@ -280,6 +280,7 @@ class ChatListState extends State<ChatList> {
   String _query = '';
   bool _showArchived = false;
   bool _selecting = false;
+  bool _reordering = false;
   final Set<String> _selectedChatIds = {};
 
   void focusSearch() {
@@ -391,7 +392,41 @@ class ChatListState extends State<ChatList> {
     }
   }
 
+  void _startReorder() {
+    if (_selecting) return;
+    setState(() {
+      _reordering = true;
+      _query = '';
+      _search.clear();
+      _searchFocus.unfocus();
+    });
+  }
+
+  void _exitReorder() {
+    if (!_reordering) return;
+    setState(() => _reordering = false);
+  }
+
+  void _reorderGroup(
+    List<ChatSession> group,
+    int oldIndex,
+    int newIndex, {
+    required bool pinned,
+  }) {
+    if (oldIndex == newIndex) return;
+    if (oldIndex < 0 || oldIndex >= group.length) return;
+    final ordered = [...group];
+    final chat = ordered.removeAt(oldIndex);
+    ordered.insert(newIndex.clamp(0, ordered.length), chat);
+    context.read<AppState>().reorderChatGroup(
+      ordered,
+      archived: _showArchived,
+      pinned: pinned,
+    );
+  }
+
   void _startSelection([ChatSession? chat]) {
+    if (_reordering) return;
     setState(() {
       _selecting = true;
       _selectedChatIds.clear();
@@ -610,6 +645,45 @@ class ChatListState extends State<ChatList> {
               ],
             ),
           )
+        else if (_reordering)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 2),
+            child: Row(
+              children: [
+                IconButton(
+                  onPressed: _exitReorder,
+                  icon: const Icon(Icons.close_rounded, size: 20),
+                  tooltip: L10n.t('Выйти из режима'),
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 32,
+                    height: 32,
+                  ),
+                ),
+                const SizedBox(width: 2),
+                Expanded(
+                  child: Text(
+                    L10n.t('Перетащите чаты вверх или вниз'),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: _exitReorder,
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                  child: const Text('Готово'),
+                ),
+              ],
+            ),
+          )
         else ...[
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
@@ -649,6 +723,17 @@ class ChatListState extends State<ChatList> {
                   ),
                 ),
                 const Spacer(),
+                IconButton(
+                  onPressed: source.length < 2 ? null : _startReorder,
+                  icon: const Icon(Icons.swap_vert_rounded, size: 18),
+                  tooltip: L10n.t('Изменить порядок'),
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 32,
+                    height: 32,
+                  ),
+                ),
                 IconButton(
                   onPressed: chats.isEmpty ? null : () => _startSelection(),
                   icon: const Icon(Icons.checklist_rounded, size: 18),
@@ -698,6 +783,8 @@ class ChatListState extends State<ChatList> {
                     ),
                   ),
                 )
+              : _reordering
+              ? _buildReorderList(state, chats)
               : ListView.builder(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 8,
@@ -736,6 +823,65 @@ class ChatListState extends State<ChatList> {
       ],
     );
   }
+
+  Widget _buildReorderList(AppState state, List<ChatSession> chats) {
+    final pinned = chats.where((chat) => chat.pinned).toList(growable: false);
+    final regular = chats.where((chat) => !chat.pinned).toList(growable: false);
+    return CustomScrollView(
+      slivers: [
+        if (pinned.isNotEmpty) ...[
+          SliverToBoxAdapter(
+            child: _ChatGroupLabel(title: L10n.t('Закреплённые')),
+          ),
+          _reorderSliver(state, pinned, pinned: true),
+        ],
+        if (regular.isNotEmpty) ...[
+          if (pinned.isNotEmpty)
+            SliverToBoxAdapter(
+              child: _ChatGroupLabel(title: L10n.t('Остальные')),
+            ),
+          _reorderSliver(state, regular, pinned: false),
+        ],
+      ],
+    );
+  }
+
+  Widget _reorderSliver(
+    AppState state,
+    List<ChatSession> group, {
+    required bool pinned,
+  }) {
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      sliver: SliverReorderableList(
+        itemCount: group.length,
+        onReorderItem: (oldIndex, newIndex) =>
+            _reorderGroup(group, oldIndex, newIndex, pinned: pinned),
+        proxyDecorator: (child, index, animation) => Material(
+          color: Colors.transparent,
+          elevation: 8,
+          borderRadius: BorderRadius.circular(12),
+          child: child,
+        ),
+        itemBuilder: (context, index) {
+          final chat = group[index];
+          return ReorderableDelayedDragStartListener(
+            key: ValueKey('reorder-${chat.id}'),
+            index: index,
+            child: ChatTile(
+              chat: chat,
+              selected: false,
+              generating: state.isGenerating(chat),
+              reorderMode: true,
+              reorderIndex: index,
+              onTap: () {},
+              onLongPress: (_) {},
+            ),
+          );
+        },
+      ),
+    );
+  }
 }
 
 /// Long press delay for the chat context menu. Faster than Flutter's default
@@ -752,6 +898,8 @@ class ChatTile extends StatelessWidget {
     required this.onLongPress,
     this.selectionMode = false,
     this.checked = false,
+    this.reorderMode = false,
+    this.reorderIndex,
   });
 
   final ChatSession chat;
@@ -761,6 +909,8 @@ class ChatTile extends StatelessWidget {
   final ValueChanged<Offset> onLongPress;
   final bool selectionMode;
   final bool checked;
+  final bool reorderMode;
+  final int? reorderIndex;
 
   @override
   Widget build(BuildContext context) {
@@ -771,18 +921,22 @@ class ChatTile extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 2),
       child: RawGestureDetector(
-        gestures: <Type, GestureRecognizerFactory>{
-          LongPressGestureRecognizer:
-              GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
-                () => LongPressGestureRecognizer(
-                  duration: kChatLongPressDuration,
-                ),
-                (recognizer) {
-                  recognizer.onLongPressStart = (details) =>
-                      onLongPress(details.globalPosition);
-                },
-              ),
-        },
+        gestures: reorderMode
+            ? const <Type, GestureRecognizerFactory>{}
+            : <Type, GestureRecognizerFactory>{
+                LongPressGestureRecognizer:
+                    GestureRecognizerFactoryWithHandlers<
+                      LongPressGestureRecognizer
+                    >(
+                      () => LongPressGestureRecognizer(
+                        duration: kChatLongPressDuration,
+                      ),
+                      (recognizer) {
+                        recognizer.onLongPressStart = (details) =>
+                            onLongPress(details.globalPosition);
+                      },
+                    ),
+              },
         child: GestureDetector(
           onSecondaryTapUp: (details) => onLongPress(details.globalPosition),
           child: Material(
@@ -792,7 +946,7 @@ class ChatTile extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
-              onTap: onTap,
+              onTap: reorderMode ? null : onTap,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
                 child: Row(
@@ -897,11 +1051,45 @@ class ChatTile extends StatelessWidget {
                         ),
                       ],
                     ],
+                    if (reorderMode && reorderIndex != null) ...[
+                      const SizedBox(width: 6),
+                      ReorderableDragStartListener(
+                        index: reorderIndex!,
+                        child: Icon(
+                          Icons.drag_indicator_rounded,
+                          size: 18,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChatGroupLabel extends StatelessWidget {
+  const _ChatGroupLabel({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 10, 22, 4),
+      child: Text(
+        title.toUpperCase(),
+        style: TextStyle(
+          fontSize: 10.5,
+          letterSpacing: 0.9,
+          fontWeight: FontWeight.w700,
+          color: scheme.onSurfaceVariant,
         ),
       ),
     );

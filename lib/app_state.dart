@@ -202,6 +202,16 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final list = [...data.chats];
     list.sort((a, b) {
       if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
+      if (data.manualChatOrder) {
+        final aOrder = a.sortOrder;
+        final bOrder = b.sortOrder;
+        if (aOrder != null || bOrder != null) {
+          if (aOrder == null) return 1;
+          if (bOrder == null) return -1;
+          final byOrder = aOrder.compareTo(bOrder);
+          if (byOrder != 0) return byOrder;
+        }
+      }
       return b.updatedAt.compareTo(a.updatedAt);
     });
     return list;
@@ -218,6 +228,73 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   List<ChatSession> get archivedChats =>
       chats.where((chat) => chat.archived).toList(growable: false);
+
+  /// Next position that puts a chat on top of its group. Null while the list
+  /// still uses the automatic recency order.
+  int? _topSortOrder({required bool archived, required bool pinned}) {
+    if (!data.manualChatOrder) return null;
+    int? min;
+    for (final chat in data.chats) {
+      if (chat.archived != archived || chat.pinned != pinned) continue;
+      final order = chat.sortOrder;
+      if (order == null) continue;
+      if (min == null || order < min) min = order;
+    }
+    return min == null ? 0 : min - 1;
+  }
+
+  void _placeAtGroupTop(ChatSession chat) {
+    final order = _topSortOrder(archived: chat.archived, pinned: chat.pinned);
+    if (order != null) chat.sortOrder = order;
+  }
+
+  /// Applies the new order of one visible group. The first call switches the
+  /// sidebar to manual order, so later messages no longer move chats up.
+  void reorderChatGroup(
+    List<ChatSession> ordered, {
+    required bool archived,
+    required bool pinned,
+  }) {
+    if (ordered.isEmpty) return;
+    final current = chats;
+    bool inGroup(ChatSession chat) =>
+        chat.archived == archived && chat.pinned == pinned;
+    final group = current.where(inGroup).toList(growable: false);
+    if (group.length != ordered.length) return;
+    final expected = {for (final chat in group) chat.id};
+    if (expected.length != ordered.length) return;
+    if (!ordered.every((chat) => inGroup(chat) && expected.contains(chat.id))) {
+      return;
+    }
+    var unchanged = true;
+    for (var i = 0; i < group.length; i++) {
+      if (group[i].id != ordered[i].id) {
+        unchanged = false;
+        break;
+      }
+    }
+    if (unchanged) return;
+
+    final result = <ChatSession>[];
+    var inserted = false;
+    for (final chat in current) {
+      if (inGroup(chat)) {
+        if (!inserted) {
+          result.addAll(ordered);
+          inserted = true;
+        }
+        continue;
+      }
+      result.add(chat);
+    }
+    if (!inserted) return;
+    for (var i = 0; i < result.length; i++) {
+      result[i].sortOrder = i;
+    }
+    data.manualChatOrder = true;
+    _scheduleSave();
+    notifyListeners();
+  }
 
   bool isServerOnline(String? serverId) {
     if (serverId == null) return true;
@@ -652,6 +729,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       systemPrompt: data.defaultSystemPrompt,
       responseFormat: data.defaultResponseFormat,
       launch: data.defaultLaunch,
+      sortOrder: _topSortOrder(archived: false, pinned: false),
     );
     data.chats.add(chat);
     activeChat = chat;
@@ -786,6 +864,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   void togglePinned(ChatSession chat) {
     chat.pinned = !chat.pinned;
+    _placeAtGroupTop(chat);
     _scheduleSave();
     notifyListeners();
   }
@@ -796,6 +875,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     for (final chat in chats) {
       if (chat.pinned == pinned) continue;
       chat.pinned = pinned;
+      _placeAtGroupTop(chat);
       changed = true;
     }
     if (!changed) return;
@@ -807,6 +887,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (chat.archived) return;
     chat.archived = true;
     chat.pinned = false;
+    _placeAtGroupTop(chat);
     if (activeChat?.id == chat.id) {
       final available = activeChats;
       activeChat = available.isEmpty ? null : available.first;
@@ -829,6 +910,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       } else {
         chat.updatedAt = DateTime.now();
       }
+      _placeAtGroupTop(chat);
       changed = true;
     }
     if (!changed) return;
@@ -845,6 +927,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (!chat.archived) return;
     chat.archived = false;
     chat.updatedAt = DateTime.now();
+    _placeAtGroupTop(chat);
     _scheduleSave();
     notifyListeners();
   }
