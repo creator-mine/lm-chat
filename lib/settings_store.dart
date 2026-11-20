@@ -37,8 +37,9 @@ class SettingsStore {
     _saveAndNotify();
   }
 
-  void updateDefaultLaunch(LaunchSettings launch) {
+  void updateDefaultLaunch(LaunchSettings launch, {String? presetId}) {
     data.defaultLaunch = launch;
+    data.defaultLaunchPresetId = presetId ?? '';
     _saveAndNotify();
   }
 

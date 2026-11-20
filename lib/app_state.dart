@@ -974,8 +974,49 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
-  void updateDefaultLaunch(LaunchSettings launch) =>
-      _settings.updateDefaultLaunch(launch);
+  void updateDefaultLaunch(LaunchSettings launch, {String? presetId}) =>
+      _settings.updateDefaultLaunch(launch, presetId: presetId);
+
+  /// Saves [settings] under [name] and returns the new preset.
+  LaunchPreset addLaunchPreset(String name, LaunchSettings settings) {
+    final trimmed = name.trim();
+    final preset = LaunchPreset(
+      id: newId(),
+      name: trimmed.isEmpty ? 'Пресет' : trimmed,
+      settings: settings,
+    );
+    data.launchPresets.add(preset);
+    _scheduleSave();
+    notifyListeners();
+    return preset;
+  }
+
+  void renameLaunchPreset(LaunchPreset preset, String name) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty || trimmed == preset.name) return;
+    final index = data.launchPresets.indexWhere((item) => item.id == preset.id);
+    if (index == -1) return;
+    data.launchPresets[index] = preset.copyWith(name: trimmed);
+    _scheduleSave();
+    notifyListeners();
+  }
+
+  /// Removes a preset. The current defaults stay as they are, so new chats do
+  /// not silently change their launch options.
+  void deleteLaunchPreset(LaunchPreset preset) {
+    final before = data.launchPresets.length;
+    data.launchPresets.removeWhere((item) => item.id == preset.id);
+    if (data.launchPresets.length == before) return;
+    if (data.defaultLaunchPresetId == preset.id) {
+      data.defaultLaunchPresetId = '';
+    }
+    _scheduleSave();
+    notifyListeners();
+  }
+
+  /// Makes [preset] the launch configuration for new chats.
+  void setDefaultLaunchPreset(LaunchPreset preset) =>
+      _settings.updateDefaultLaunch(preset.settings, presetId: preset.id);
 
   void completeSetup() => _settings.completeSetup();
 

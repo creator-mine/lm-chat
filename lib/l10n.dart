@@ -362,6 +362,19 @@ class L10n {
 
     // ------------------------------------------------------------ chat UI
     'Запуск модели': 'Model launch',
+    'Пресеты запуска': 'Launch presets',
+    'Сохранить пресет': 'Save preset',
+    'Новый пресет': 'New preset',
+    'Переименовать пресет': 'Rename preset',
+    'Пресет «{name}» сохранён': 'Preset “{name}” saved',
+    'Удалить пресет?': 'Delete preset?',
+    'Пресет «{name}» будет удалён. Настройки запуска у чатов не изменятся.':
+        'Preset “{name}” will be deleted. Chat launch settings stay unchanged.',
+    '«{name}» назначен по умолчанию': '“{name}” is now the default',
+    'По умолчанию': 'Set as default',
+    'По умолчанию для новых чатов': 'Default for new chats',
+    'пресет: {name}': 'preset: {name}',
+    'Настройте параметры ниже и сохраните их как пресет — потом его можно применить в один тап.': 'Adjust the options below and save them as a preset to apply it in one tap.',
     'Параметры чата': 'Chat parameters',
     'Параметры по умолчанию': 'Default parameters',
     'Параметры сохраняются сразу и применяются при следующей отправке.':

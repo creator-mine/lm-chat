@@ -58,6 +58,7 @@ class _ModelSettingsSheetState extends State<_ModelSettingsSheet> {
   String? _error;
   String? _warning;
   String? _command;
+  String? _selectedPresetId;
 
   ChatSession? get _chat => context.read<AppState>().activeChat;
 
@@ -68,6 +69,7 @@ class _ModelSettingsSheetState extends State<_ModelSettingsSheet> {
     _launch = widget.defaults
         ? state.data.defaultLaunch
         : (state.activeChat?.launch ?? state.data.defaultLaunch);
+    _selectedPresetId = _matchPresetId(_launch);
     if (!widget.defaults) _refresh();
   }
 
@@ -84,18 +86,121 @@ class _ModelSettingsSheetState extends State<_ModelSettingsSheet> {
 
   void _update(LaunchSettings next) {
     final state = context.read<AppState>();
+    final matched = _matchPresetId(next);
     setState(() {
       _launch = next;
+      _selectedPresetId = matched;
       _error = null;
       _warning = null;
       _command = null;
     });
     if (widget.defaults) {
-      state.updateDefaultLaunch(next);
+      state.updateDefaultLaunch(next, presetId: matched);
     } else {
       final chat = state.activeChat;
       if (chat != null) state.updateChatLaunch(chat, next);
     }
+  }
+
+  String? _matchPresetId(LaunchSettings settings) {
+    for (final preset in context.read<AppState>().data.launchPresets) {
+      if (preset.settings == settings) return preset.id;
+    }
+    return null;
+  }
+
+  LaunchPreset? _presetById(String? id) {
+    if (id == null) return null;
+    for (final preset in context.read<AppState>().data.launchPresets) {
+      if (preset.id == id) return preset;
+    }
+    return null;
+  }
+
+  Future<String?> _askPresetName({
+    required String title,
+    required String initial,
+  }) => showDialog<String>(
+    context: context,
+    builder: (_) => _PresetNameDialog(title: title, initial: initial),
+  );
+
+  Future<void> _savePreset() async {
+    final state = context.read<AppState>();
+    final name = await _askPresetName(
+      title: 'Новый пресет',
+      initial: 'Пресет ${state.data.launchPresets.length + 1}',
+    );
+    if (name == null || !mounted) return;
+    final preset = state.addLaunchPreset(name, _launch);
+    setState(() => _selectedPresetId = preset.id);
+    if (widget.defaults) state.setDefaultLaunchPreset(preset);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            L10n.tf('Пресет «{name}» сохранён', {'name': preset.name}),
+          ),
+        ),
+      );
+  }
+
+  Future<void> _renamePreset(LaunchPreset preset) async {
+    final name = await _askPresetName(
+      title: 'Переименовать пресет',
+      initial: preset.name,
+    );
+    if (name == null || !mounted) return;
+    context.read<AppState>().renameLaunchPreset(preset, name);
+  }
+
+  Future<void> _deletePreset(LaunchPreset preset) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Удалить пресет?'),
+        content: Text(
+          L10n.tf(
+            'Пресет «{name}» будет удалён. Настройки запуска у чатов не изменятся.',
+            {'name': preset.name},
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+            ),
+            child: const Text('Удалить'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    context.read<AppState>().deleteLaunchPreset(preset);
+    if (_selectedPresetId == preset.id) {
+      setState(() => _selectedPresetId = null);
+    }
+  }
+
+  void _makePresetDefault(LaunchPreset preset) {
+    context.read<AppState>().setDefaultLaunchPreset(preset);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            L10n.tf('«{name}» назначен по умолчанию', {'name': preset.name}),
+          ),
+        ),
+      );
   }
 
   LmModelInfo? get _info {
@@ -108,61 +213,13 @@ class _ModelSettingsSheetState extends State<_ModelSettingsSheet> {
 
   Future<void> _pickCustomContext() async {
     final max = _info?.maxContextLength;
-    final controller = TextEditingController(
-      text: _launch.contextLength?.toString() ?? '',
-    );
     final value = await showDialog<int>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Контекстное окно'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextField(
-              controller: controller,
-              autofocus: true,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: InputDecoration(
-                labelText: L10n.t('Токенов'),
-                hintText: L10n.t('например 12288'),
-                helperText: max == null
-                    ? null
-                    : L10n.tf('Максимум модели: {tokens}', {
-                        'tokens': formatNumber(max),
-                      }),
-              ),
-              onSubmitted: (text) =>
-                  Navigator.pop(dialogContext, int.tryParse(text.trim())),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'Больший контекст требует больше памяти. '
-              'Значение применяется при загрузке модели.',
-              style: TextStyle(
-                fontSize: 12,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Отмена'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(
-              dialogContext,
-              int.tryParse(controller.text.trim()),
-            ),
-            child: const Text('ОК'),
-          ),
-        ],
+      builder: (_) => _ContextLengthDialog(
+        initial: _launch.contextLength?.toString() ?? '',
+        max: max,
       ),
     );
-    controller.dispose();
     if (value == null) return;
     var tokens = value < 256 ? 256 : value;
     if (max != null && tokens > max) tokens = max;
@@ -295,6 +352,7 @@ class _ModelSettingsSheetState extends State<_ModelSettingsSheet> {
         : (chat?.model.isNotEmpty == true
               ? (info?.displayName ?? chat!.model)
               : 'Модель не выбрана');
+    final selectedPreset = _presetById(_selectedPresetId);
 
     return Padding(
       padding: EdgeInsets.only(
@@ -335,7 +393,141 @@ class _ModelSettingsSheetState extends State<_ModelSettingsSheet> {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Пресеты запуска',
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _savePreset,
+                  icon: const Icon(Icons.bookmark_add_outlined, size: 16),
+                  label: const Text('Сохранить пресет'),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ],
+            ),
+            if (state.data.launchPresets.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 2, bottom: 4),
+                child: Text(
+                  'Настройте параметры ниже и сохраните их как пресет — потом '
+                  'его можно применить в один тап.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              )
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final preset in state.data.launchPresets)
+                    ChoiceChip(
+                      label: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (state.data.defaultLaunchPresetId ==
+                              preset.id) ...[
+                            Icon(
+                              Icons.star_rounded,
+                              size: 15,
+                              color: scheme.primary,
+                            ),
+                            const SizedBox(width: 4),
+                          ],
+                          Text(preset.name),
+                        ],
+                      ),
+                      selected: preset.id == _selectedPresetId,
+                      onSelected: (_) => _update(preset.settings),
+                    ),
+                ],
+              ),
+            if (selectedPreset != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Wrap(
+                  spacing: 2,
+                  children: [
+                    if (!widget.defaults &&
+                        state.data.defaultLaunchPresetId != selectedPreset.id)
+                      TextButton.icon(
+                        onPressed: () => _makePresetDefault(selectedPreset),
+                        icon: const Icon(Icons.star_outline_rounded, size: 16),
+                        label: const Text('По умолчанию'),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ),
+                    if (state.data.defaultLaunchPresetId == selectedPreset.id)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          left: 8,
+                          right: 8,
+                          top: 6,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.star_rounded,
+                              size: 15,
+                              color: scheme.primary,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              'По умолчанию для новых чатов',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: scheme.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    TextButton.icon(
+                      onPressed: () => _renamePreset(selectedPreset),
+                      icon: const Icon(Icons.edit_rounded, size: 15),
+                      label: const Text('Переименовать'),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => _deletePreset(selectedPreset),
+                      icon: Icon(
+                        Icons.delete_outline_rounded,
+                        size: 15,
+                        color: scheme.error,
+                      ),
+                      label: Text(
+                        'Удалить',
+                        style: TextStyle(color: scheme.error),
+                      ),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const Divider(height: 20),
             if (!widget.defaults)
               _StatusCard(
                 loaded: loaded,
@@ -616,6 +808,133 @@ class _ModelSettingsSheetState extends State<_ModelSettingsSheet> {
     final chat = state.activeChat;
     if (chat == null) return null;
     return state.modelInfo(chat.serverId, chat.model);
+  }
+}
+
+class _ContextLengthDialog extends StatefulWidget {
+  const _ContextLengthDialog({required this.initial, this.max});
+
+  final String initial;
+  final int? max;
+
+  @override
+  State<_ContextLengthDialog> createState() => _ContextLengthDialogState();
+}
+
+class _ContextLengthDialogState extends State<_ContextLengthDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initial);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() =>
+      Navigator.pop(context, int.tryParse(_controller.text.trim()));
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Контекстное окно'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: InputDecoration(
+              labelText: L10n.t('Токенов'),
+              hintText: L10n.t('например 12288'),
+              helperText: widget.max == null
+                  ? null
+                  : L10n.tf('Максимум модели: {tokens}', {
+                      'tokens': formatNumber(widget.max!),
+                    }),
+            ),
+            onSubmitted: (_) => _submit(),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Больший контекст требует больше памяти. '
+            'Значение применяется при загрузке модели.',
+            style: TextStyle(
+              fontSize: 12,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Отмена'),
+        ),
+        FilledButton(onPressed: _submit, child: const Text('ОК')),
+      ],
+    );
+  }
+}
+
+class _PresetNameDialog extends StatefulWidget {
+  const _PresetNameDialog({required this.title, required this.initial});
+
+  final String title;
+  final String initial;
+
+  @override
+  State<_PresetNameDialog> createState() => _PresetNameDialogState();
+}
+
+class _PresetNameDialogState extends State<_PresetNameDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initial)
+      ..selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: widget.initial.length,
+      );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() => Navigator.pop(context, _controller.text.trim());
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        textCapitalization: TextCapitalization.sentences,
+        decoration: const InputDecoration(labelText: 'Название'),
+        onSubmitted: (_) => _submit(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Отмена'),
+        ),
+        FilledButton(onPressed: _submit, child: const Text('Сохранить')),
+      ],
+    );
   }
 }
 

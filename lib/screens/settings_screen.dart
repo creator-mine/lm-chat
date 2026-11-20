@@ -127,7 +127,10 @@ class SettingsScreen extends StatelessWidget {
                   leading: const Icon(Icons.memory_rounded),
                   title: const Text('Контекст и загрузка'),
                   subtitle: Text(
-                    _launchSummary(state.data.defaultLaunch),
+                    _launchSummary(
+                      state.data.defaultLaunch,
+                      presetName: _defaultPresetName(state.data),
+                    ),
                     style: const TextStyle(fontSize: 12),
                   ),
                   trailing: const Icon(Icons.chevron_right_rounded),
@@ -883,7 +886,9 @@ String _defaultsSummary(BuildContext context, AppData data) {
   ].join(' · ');
 }
 
-String _launchSummary(LaunchSettings launch) => [
+String _launchSummary(LaunchSettings launch, {String? presetName}) => [
+  if (presetName != null && presetName.isNotEmpty)
+    L10n.tf('пресет: {name}', {'name': presetName}),
   launch.loadOnDemand
       ? L10n.t('загрузка по требованию')
       : L10n.t('загрузка заранее'),
@@ -892,6 +897,13 @@ String _launchSummary(LaunchSettings launch) => [
     L10n.tf('GPU: {value}', {'value': formatGpuRatio(launch.gpuRatio)}),
   L10n.tf('TTL: {value}', {'value': formatDuration(launch.ttlSeconds)}),
 ].join(' · ');
+
+String? _defaultPresetName(AppData data) {
+  for (final preset in data.launchPresets) {
+    if (preset.id == data.defaultLaunchPresetId) return preset.name;
+  }
+  return null;
+}
 
 String _hostOf(String url) =>
     url.replaceFirst('http://', '').replaceFirst('https://', '');

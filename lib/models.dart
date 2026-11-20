@@ -907,6 +907,70 @@ class LaunchSettings {
     evalBatchSize: (json['evalBatchSize'] as num?)?.toInt(),
     gpuRatio: (json['gpuRatio'] as num?)?.toDouble(),
   );
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LaunchSettings &&
+          contextLength == other.contextLength &&
+          loadOnDemand == other.loadOnDemand &&
+          ttlSeconds == other.ttlSeconds &&
+          flashAttention == other.flashAttention &&
+          offloadKvCache == other.offloadKvCache &&
+          evalBatchSize == other.evalBatchSize &&
+          gpuRatio == other.gpuRatio;
+
+  @override
+  int get hashCode => Object.hash(
+    contextLength,
+    loadOnDemand,
+    ttlSeconds,
+    flashAttention,
+    offloadKvCache,
+    evalBatchSize,
+    gpuRatio,
+  );
+}
+
+/// Named set of launch options that can be applied to a chat in one tap.
+///
+/// Presets live in [AppData] and follow the same JSON shape, so importing a
+/// profile or a backup keeps them.
+class LaunchPreset {
+  const LaunchPreset({
+    required this.id,
+    required this.name,
+    required this.settings,
+  });
+
+  final String id;
+  final String name;
+  final LaunchSettings settings;
+
+  LaunchPreset copyWith({String? name, LaunchSettings? settings}) =>
+      LaunchPreset(
+        id: id,
+        name: name ?? this.name,
+        settings: settings ?? this.settings,
+      );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'settings': settings.toJson(),
+  };
+
+  factory LaunchPreset.fromJson(Map<String, dynamic> json) => LaunchPreset(
+    id: json['id'] as String? ?? newId(),
+    name: (json['name'] as String? ?? '').trim().isEmpty
+        ? 'Пресет'
+        : (json['name'] as String).trim(),
+    settings: json['settings'] is Map
+        ? LaunchSettings.fromJson(
+            Map<String, dynamic>.from(json['settings'] as Map),
+          )
+        : const LaunchSettings(),
+  );
 }
 
 /// Structured output settings for one chat.
@@ -1791,7 +1855,7 @@ class SchemaTooNewException implements Exception {
 
 class AppData {
   /// Increment when the on-disk shape changes in a way that needs migration.
-  static const int currentSchemaVersion = 16;
+  static const int currentSchemaVersion = 17;
 
   /// Validates the on-disk schema and stamps it with the current version.
   ///
@@ -1822,6 +1886,8 @@ class AppData {
       offloadKvCache: true,
       evalBatchSize: 2048,
     ),
+    this.defaultLaunchPresetId = '',
+    List<LaunchPreset>? launchPresets,
     this.setupDone = false,
     this.backgroundGeneration = true,
     this.autoCheckUpdates = true,
@@ -1841,7 +1907,8 @@ class AppData {
     this.schemaVersion = currentSchemaVersion,
   }) : servers = servers ?? [],
        chats = chats ?? [],
-       promptTemplates = promptTemplates ?? [];
+       promptTemplates = promptTemplates ?? [],
+       launchPresets = launchPresets ?? [];
 
   int schemaVersion;
   AppThemeMode themeMode;
@@ -1872,6 +1939,7 @@ class AppData {
   final List<ServerConfig> servers;
   final List<ChatSession> chats;
   final List<PromptTemplate> promptTemplates;
+  final List<LaunchPreset> launchPresets;
   String? activeServerId;
   double defaultTemperature;
   double defaultTopP;
@@ -1881,6 +1949,10 @@ class AppData {
   String defaultSystemPrompt;
   ResponseFormat defaultResponseFormat;
   LaunchSettings defaultLaunch;
+
+  /// Preset that [defaultLaunch] currently comes from. Empty means the user
+  /// changed the defaults by hand.
+  String defaultLaunchPresetId;
   bool setupDone;
 
   /// Keep the process awake with a foreground service while an answer is being
@@ -1927,6 +1999,10 @@ class AppData {
     if (defaultResponseFormat.isStructured)
       'defaultResponseFormat': defaultResponseFormat.toJson(),
     'defaultLaunch': defaultLaunch.toJson(),
+    if (launchPresets.isNotEmpty)
+      'launchPresets': launchPresets.map((preset) => preset.toJson()).toList(),
+    if (defaultLaunchPresetId.isNotEmpty)
+      'defaultLaunchPresetId': defaultLaunchPresetId,
     'setupDone': setupDone,
     'backgroundGeneration': backgroundGeneration,
     'autoCheckUpdates': autoCheckUpdates,
@@ -1981,6 +2057,13 @@ class AppData {
           )
         : const ResponseFormat(),
     defaultLaunch: _defaultLaunchFromJson(json['defaultLaunch']),
+    defaultLaunchPresetId: json['defaultLaunchPresetId'] as String? ?? '',
+    launchPresets:
+        (json['launchPresets'] as List?)
+            ?.whereType<Map<String, dynamic>>()
+            .map(LaunchPreset.fromJson)
+            .toList() ??
+        [],
     setupDone: json['setupDone'] as bool? ?? false,
     backgroundGeneration: json['backgroundGeneration'] as bool? ?? true,
     autoCheckUpdates: json['autoCheckUpdates'] as bool? ?? true,
