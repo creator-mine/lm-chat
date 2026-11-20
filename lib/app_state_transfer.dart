@@ -897,6 +897,8 @@ extension AppStateTransfer on AppState {
         data.defaultSystemPrompt = profile.defaultSystemPrompt;
         data.defaultResponseFormat = profile.defaultResponseFormat;
         data.defaultLaunch = profile.defaultLaunch;
+        // The profile carries the settings, not local preset ids.
+        data.defaultLaunchPresetId = '';
       }
 
       if (options.appearance) {
