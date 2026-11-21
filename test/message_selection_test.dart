@@ -70,7 +70,7 @@ void main() {
     expect(markdown, contains('Выбранные сообщения: 0 из 4'));
   });
 
-  testWidgets('chat menu selects messages and shows the selected count', (
+  testWidgets('toolbar selects messages and shows the selected count', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1280, 820);
@@ -92,9 +92,8 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.byIcon(Icons.more_vert));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Выбрать сообщения'));
+    expect(find.byIcon(Icons.more_vert), findsNothing);
+    await tester.tap(find.byTooltip('Выбрать сообщения'));
     await tester.pumpAndSettle();
 
     expect(find.text('Выбрано: 0'), findsOneWidget);
@@ -115,7 +114,7 @@ void main() {
     await tester.tap(find.byIcon(Icons.close_rounded));
     await tester.pumpAndSettle();
     expect(find.byType(Checkbox), findsNothing);
-    expect(find.byIcon(Icons.more_vert), findsOneWidget);
+    expect(find.byTooltip('Выбрать сообщения'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

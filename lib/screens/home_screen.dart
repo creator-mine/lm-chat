@@ -14,7 +14,6 @@ import '../theme.dart';
 import '../voice_input.dart';
 import '../widgets/chat_drawer.dart';
 import '../widgets/context_indicator.dart';
-import '../widgets/export_sheet.dart';
 import '../widgets/generation_stats_sheet.dart';
 import '../widgets/import_preview_sheet.dart';
 import '../widgets/import_sheet.dart';
@@ -1009,53 +1008,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   icon: const Icon(Icons.memory_rounded, size: 21),
                   tooltip: L10n.t('Запуск модели'),
                 ),
-              PopupMenuButton<String>(
-                onSelected: (value) async {
-                  final current = state.activeChat;
-                  if (current == null) return;
-                  switch (value) {
-                    case 'launch':
-                      await showModelSettings(context);
-                    case 'rename':
-                      await _rename(current);
-                    case 'regen':
-                      await state.regenerate();
-                    case 'clear':
-                      state.clearChat(current);
-                    case 'export':
-                      await showExportSheet(context, chat: current);
-                    case 'copy':
-                      await Clipboard.setData(
-                        ClipboardData(text: state.chatToMarkdown(current)),
-                      );
-                      if (!context.mounted) return;
-                      ScaffoldMessenger.of(context)
-                        ..hideCurrentSnackBar()
-                        ..showSnackBar(
-                          const SnackBar(content: Text('Чат скопирован')),
-                        );
-                    case 'select':
-                      _startSelection();
-                    case 'delete':
-                      await _confirmDelete(current);
-                  }
-                },
-                itemBuilder: (context) => const [
-                  PopupMenuItem(value: 'launch', child: Text('Запуск модели')),
-                  PopupMenuDivider(),
-                  PopupMenuItem(value: 'rename', child: Text('Переименовать')),
-                  PopupMenuItem(value: 'regen', child: Text('Повторить ответ')),
-                  PopupMenuItem(value: 'clear', child: Text('Очистить чат')),
-                  PopupMenuDivider(),
-                  PopupMenuItem(value: 'copy', child: Text('Копировать чат')),
-                  PopupMenuItem(
-                    value: 'select',
-                    child: Text('Выбрать сообщения'),
-                  ),
-                  PopupMenuItem(value: 'export', child: Text('Экспорт…')),
-                  PopupMenuDivider(),
-                  PopupMenuItem(value: 'delete', child: Text('Удалить чат')),
-                ],
+              IconButton(
+                onPressed: (state.activeChat?.messages.isNotEmpty ?? false)
+                    ? () => _startSelection()
+                    : null,
+                icon: const Icon(Icons.checklist_rounded, size: 21),
+                tooltip: L10n.t('Выбрать сообщения'),
               ),
             ],
           );

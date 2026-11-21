@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart' hide Text;
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../app_state.dart';
@@ -112,6 +113,31 @@ class _ParamsSheetState extends State<_ParamsSheet> {
   void _save() {
     if (!_apply()) return;
     Navigator.of(context).pop();
+  }
+
+  Future<void> _copyChat() async {
+    final chat = widget.chat;
+    if (chat == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final text = context.read<AppState>().chatToMarkdown(chat);
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) return;
+    navigator.pop();
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(content: Text('Чат скопирован')));
+  }
+
+  void _clearChat() {
+    final chat = widget.chat;
+    if (chat == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    context.read<AppState>().clearChat(chat);
+    Navigator.of(context).pop();
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(content: Text('Чат очищен')));
   }
 
   /// Persists the fields without closing the sheet, so opening the launch
@@ -463,6 +489,40 @@ class _ParamsSheetState extends State<_ParamsSheet> {
               trailing: const Icon(Icons.chevron_right_rounded),
               onTap: _openLaunch,
             ),
+            if (!widget.defaults && widget.chat != null) ...[
+              const Divider(height: 24),
+              Text(
+                L10n.t('Действия с чатом'),
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w600,
+                  color: scheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 4,
+                runSpacing: 2,
+                children: [
+                  TextButton.icon(
+                    onPressed: _copyChat,
+                    icon: const Icon(Icons.copy_all_rounded, size: 17),
+                    label: const Text('Копировать чат'),
+                  ),
+                  TextButton.icon(
+                    onPressed: _clearChat,
+                    icon: const Icon(
+                      Icons.cleaning_services_outlined,
+                      size: 17,
+                    ),
+                    label: Text(
+                      'Очистить чат',
+                      style: TextStyle(color: scheme.error),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 6),
             Row(
               children: [

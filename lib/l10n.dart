@@ -187,6 +187,8 @@ class L10n {
     'Догрузить ответ': 'Resume answer',
     'Копировать': 'Copy',
     'Копировать чат': 'Copy chat',
+    'Действия с чатом': 'Chat actions',
+    'Чат очищен': 'Chat cleared',
     'Копировать код': 'Copy code',
     'Копировать команду': 'Copy command',
     'Скопировано': 'Copied',
